@@ -303,7 +303,7 @@
         // دالة فتح الكاميرا
         async function openCamera(studentId, studentName) {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 const video = document.getElementById('camera-preview');
                 video.srcObject = stream;
                 
