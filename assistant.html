@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مساعد الحصر</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#e67e22">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        body {
+            background-color: #f7faff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .title {
+            color: #e67e22;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 2px solid #2980b9;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .button {
+            background-color: #e67e22;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .button:hover {
+            background-color: #f39c12;
+        }
+        
+        .button.import {
+            background-color: #27ae60;
+        }
+        
+        .button.import:hover {
+            background-color: #2ecc71;
+        }
+        
+        .counter {
+            background-color: #2980b9;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background-color: #34495e;
+            color: white;
+            font-size: 16px;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .camera-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .camera-button:hover {
+            background-color: #2980b9;
+        }
+        
+        #camera-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            z-index: 1000;
+        }
+        
+        .camera-container {
+            position: relative;
+            width: 95vw;
+            max-width: 400px;
+            margin: 30px auto;
+            background-color: white;
+            padding: 10px;
+            border-radius: 10px;
+            max-height: 60vh;
+            box-sizing: border-box;
+        }
+        
+        #camera-preview {
+            width: 100%;
+            max-height: 40vh;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .student-name {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">مساعد الحصر</h1>
+            <div class="controls">
+                <input type="text" class="search-box" placeholder="ابحث عن طالب...">
+                <button class="button import" onclick="importExcel()">استيراد ملف Excel</button>
+                <button class="button" onclick="downloadImages()">تحميل الصور</button>
+                <div class="counter">الصور الملتقطة: <span id="photos-count">0</span></div>
+            </div>
+        </div>
+        
+        <table id="students-table">
+            <thead>
+                <tr>
+                    <th>الهوية</th>
+                    <th>الاسم</th>
+                    <th>الصف</th>
+                    <th>الفصل</th>
+                    <th>رقم الجوال</th>
+                    <th>الصورة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- سيتم إضافة الصفوف هنا عن طريق JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div id="camera-modal">
+        <div class="camera-container">
+            <div class="student-name" id="current-student-name"></div>
+            <video id="camera-preview" autoplay></video>
+            <div class="camera-controls">
+                <button class="button" onclick="capturePhoto()">حفظ الصورة</button>
+                <button class="button" onclick="closeCamera()">إغلاق</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let students = [];
+        let capturedPhotos = new Map();
+        let stream = null;
+        
+        // تسجيل Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+        
+        // دالة استيراد ملف Excel
+        function importExcel() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx, .xls';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const data = await readExcelFile(file);
+                    students = data;
+                    updateTable();
+                } catch (error) {
+                    alert('حدث خطأ أثناء قراءة الملف: ' + error.message);
+                }
+            };
+            input.click();
+        }
+        
+        // دالة قراءة ملف Excel
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        // دالة تحديث الجدول
+        function updateTable() {
+            const tbody = document.querySelector('#students-table tbody');
+            tbody.innerHTML = '';
+            
+            students.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${student['الهوية'] || ''}</td>
+                    <td>${student['الاسم'] || ''}</td>
+                    <td>${student['الصف'] || ''}</td>
+                    <td>${student['الفصل'] || ''}</td>
+                    <td>${student['رقم الجوال'] || ''}</td>
+                    <td>
+                        <button class="camera-button" onclick="openCamera('${student['الهوية']}', '${student['الاسم']}')">
+                            ${capturedPhotos.has(student['الهوية']) ? 'إعادة التقاط' : 'التقاط صورة'}
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            updateCounter();
+        }
+        
+        // دالة فتح الكاميرا
+        async function openCamera(studentId, studentName) {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('camera-preview');
+                video.srcObject = stream;
+                
+                document.getElementById('current-student-name').textContent = studentName;
+                document.getElementById('camera-modal').style.display = 'block';
+                
+                // تخزين معرف الطالب الحالي
+                video.dataset.studentId = studentId;
+            } catch (error) {
+                alert('حدث خطأ في الوصول إلى الكاميرا: ' + error.message);
+            }
+        }
+        
+        // دالة إغلاق الكاميرا
+        function closeCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            document.getElementById('camera-modal').style.display = 'none';
+        }
+        
+        // دالة التقاط الصورة
+        function capturePhoto() {
+            const video = document.getElementById('camera-preview');
+            const studentId = video.dataset.studentId;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // تحويل الصورة إلى ملف
+            canvas.toBlob(blob => {
+                capturedPhotos.set(studentId, blob);
+                updateCounter();
+                closeCamera();
+                updateTable();
+            }, 'image/jpeg');
+        }
+        
+        // دالة تحديث العداد
+        function updateCounter() {
+            document.getElementById('photos-count').textContent = capturedPhotos.size;
+        }
+        
+        // دالة تحميل الصور
+        function downloadImages() {
+            if (capturedPhotos.size === 0) {
+                alert('لا توجد صور لتحميلها');
+                return;
+            }
+            
+            const zip = new JSZip();
+            
+            capturedPhotos.forEach((blob, studentId) => {
+                zip.file(`${studentId}.jpg`, blob);
+            });
+            
+            zip.generateAsync({ type: 'blob' })
+                .then(content => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(content);
+                    link.download = 'student_photos.zip';
+                    link.click();
+                });
+        }
+        
+        // دالة البحث
+        document.querySelector('.search-box').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#students-table tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+</body>
+</html> 
