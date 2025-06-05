@@ -243,7 +243,7 @@
         let stream = null;
         // متغير لتتبع عملية كشف الوجوه
         let faceDetectionInterval = null;
-        let currentFacingMode = 'environment'; // نبدأ بالكاميرا الخلفية
+        let currentFacingMode = 'user'; // نبدأ بالكاميرا الأمامية
         
         // تسجيل Service Worker
         if ('serviceWorker' in navigator) {
@@ -502,13 +502,13 @@
                 stream.getTracks().forEach(track => track.stop());
                 
                 // تبديل نوع الكاميرا
-                currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
                 
                 try {
                     // تشغيل الكاميرا الجديدة
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: {
-                            facingMode: currentFacingMode
+                            facingMode: { exact: currentFacingMode }
                         }
                     });
                     document.getElementById('camera-preview').srcObject = stream;
