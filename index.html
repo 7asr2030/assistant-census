@@ -220,7 +220,7 @@
             <div class="student-name" id="current-student-name"></div>
             <video id="camera-preview" autoplay></video>
             <!-- إضافة canvas لرسم الإطار الأخضر -->
-            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
+            <!-- تم إزالة canvas ذي المعرف overlay لاستبداله بآخر يتم إنشاؤه ديناميكياً -->
             <div class="camera-controls">
                 <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
                 <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
@@ -314,20 +314,28 @@
             updateCounter();
         }
         
-        // دالة فتح الكاميرا - تم التعديل لتحسين دقة كشف الوجه
+        // دالة فتح الكاميرا - تم التعديل لتحسين دقة كشف الوجه وأداء الكاميرا الخلفية
         async function openCamera(studentId, studentName) {
             const video = document.getElementById('camera-preview');
-            const overlayCanvas = document.getElementById('overlay');
+            // const overlayCanvas = document.getElementById('overlay'); // No longer needed as canvas is dynamic
 
             try {
-                // استخدام الوضع الحالي للكاميرا
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    } 
-                });
+                // Configure video constraints based on facing mode
+                const videoConstraints = {};
+                if (currentFacingMode === 'environment') {
+                    // For back camera, let the browser pick the best resolution for performance
+                    videoConstraints.facingMode = 'environment';
+                } else {
+                    // For front camera, we can still request an ideal resolution if needed, or also let the browser decide
+                    // Let's keep the ideal resolution for 'user' mode for now, or remove it if performance is still an issue.
+                    // For simplicity and better compatibility, let's remove ideal constraints here too initially.
+                     videoConstraints.facingMode = currentFacingMode;
+                     // videoConstraints.width = { ideal: 1280 }; // Removed for better performance
+                     // videoConstraints.height = { ideal: 720 }; // Removed for better performance
+                }
+
+
+                stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
@@ -335,39 +343,30 @@
                 video.dataset.studentId = studentId;
 
                 // تحميل النماذج قبل بدء تشغيل الفيديو
-                try {
-                    await faceapi.nets.tinyFaceDetector.loadFromUri('./models');
-                    console.log('Face-api.js models loaded successfully');
-                } catch (modelError) {
-                    console.error('Error loading face-api.js models:', modelError);
-                    alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه');
-                    closeCamera();
-                    return;
-                }
+                // Models are loaded earlier in the script now, ensure they are awaited or loaded before calling openCamera
+                // Removed redundant model loading here.
 
                 video.onplay = async () => {
-                    console.log('Video is playing.');
+                    console.log('Video is playing. Setting up dynamic canvas and detection.');
 
-                    // استخدام أبعاد عرض الفيديو بعد تطبيق CSS
-                    const displaySize = {
-                        width: video.clientWidth,
-                        height: video.clientHeight
-                    };
+                    // Create canvas dynamically and append it
+                    // This function automatically matches canvas dimensions and position to the video
+                    const cameraContainer = document.querySelector('.camera-container');
+                    const existingCanvas = cameraContainer.querySelector('canvas');
+                    if (existingCanvas) { // Remove previous canvas if exists (from switching cameras)
+                         existingCanvas.remove();
+                    }
+                    const overlayCanvas = faceapi.createCanvasFromMedia(video);
+                    overlayCanvas.style.position = 'absolute'; // Ensure canvas overlays correctly
+                    overlayCanvas.style.top = '0'; // Position at the top of the container
+                    overlayCanvas.style.left = '0'; // Position at the left of the container
+                    cameraContainer.appendChild(overlayCanvas);
 
-                    // ضبط أبعاد الـ canvas لتطابق أبعاد عرض الفيديو
-                    overlayCanvas.width = video.clientWidth;
-                    overlayCanvas.height = video.clientHeight;
-
-                    // ضبط موضع الـ canvas ليتراكب مع الفيديو
-                    overlayCanvas.style.position = 'absolute';
-                    overlayCanvas.style.left = video.offsetLeft + 'px';
-                    overlayCanvas.style.top = video.offsetTop + 'px';
-                    // تأكد أن حجم الـ canvas المعروض يتطابق مع الفيديو
-                    overlayCanvas.style.width = video.clientWidth + 'px'; // تحديد العرض بالبكسل
-                    overlayCanvas.style.height = video.clientHeight + 'px'; // تحديد الارتفاع بالبكسل
-
+                    // Match dimensions using the dynamically created canvas
+                    const displaySize = { width: video.clientWidth, height: video.clientHeight };
                     faceapi.matchDimensions(overlayCanvas, displaySize);
-                    console.log(`Canvas dimensions set to ${displaySize.width}x${displaySize.height}. Starting face detection interval.`);
+                     console.log(`Dynamic Canvas dimensions matched to video client size: ${displaySize.width}x${displaySize.height}. Starting face detection interval.`);
+
 
                     faceDetectionInterval = setInterval(async () => {
                         try {
@@ -409,12 +408,12 @@
                 clearInterval(faceDetectionInterval);
                 faceDetectionInterval = null;
             }
-             // مسح canvas الرسم
-             const overlayCanvas = document.getElementById('overlay');
-             if(overlayCanvas){
-                 const context = overlayCanvas.getContext('2d');
-                 context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-             }
+            // Remove the dynamically created canvas
+            const cameraContainer = document.querySelector('.camera-container');
+            const overlayCanvas = cameraContainer.querySelector('canvas'); // Find the canvas within the container
+            if (overlayCanvas) {
+                overlayCanvas.remove(); // Remove the canvas element
+            }
 
             document.getElementById('camera-modal').style.display = 'none';
         }
