@@ -319,8 +319,14 @@
             const overlayCanvas = document.getElementById('overlay');
 
             try {
-                // تصحيح الخطأ هنا: استخدام navigator.mediaDevices.getUserMedia فقط
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // تعديل إعدادات الكاميرا لاستخدام الكاميرا الخلفية
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
