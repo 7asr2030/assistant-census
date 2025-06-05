@@ -192,8 +192,6 @@
             font-size: 16px;
         }
     </style>
-    <!-- إضافة مكتبة face-api.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -242,10 +240,10 @@
         let students = [];
         let capturedPhotos = new Map();
         let stream = null;
-        // متغير لتتبع عملية كشف الوجوه
         let faceDetectionInterval = null;
-        let currentFacingMode = 'user'; // نبدأ بالكاميرا الأمامية
-        let isCameraActive = false; // متغير لتعقب حالة الكاميرا
+        let currentFacingMode = 'user';
+        let isCameraActive = false;
+        let faceApiLoaded = false;
         
         // تسجيل Service Worker
         if ('serviceWorker' in navigator) {
@@ -325,7 +323,7 @@
             updateCounter();
         }
         
-        // دالة فتح الكاميرا - تم التعديل لتصحيح خطأ الوصول للكاميرا وتحسين مزامنة الأبعاد
+        // دالة فتح الكاميرا - تم التعديل لتحميل face-api.js ديناميكياً ومعالجة الأخطاء
         async function openCamera(studentId, studentName) {
             console.log('openCamera called for student:', studentId, studentName);
 
@@ -342,6 +340,26 @@
             isCameraActive = true;
 
             try {
+                // تحميل مكتبة face-api.js ديناميكياً إذا لم يتم تحميلها بعد
+                if (!faceApiLoaded) {
+                    console.log('Loading face-api.js dynamically...');
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+                        script.defer = true;
+                        script.onload = () => { faceApiLoaded = true; console.log('face-api.js loaded.'); resolve(); };
+                        script.onerror = (e) => { console.error('Failed to load face-api.js', e); reject(new Error('Failed to load face-api.js')); };
+                        document.body.appendChild(script);
+                    });
+                }
+                
+                // تحميل النماذج إذا لم يتم تحميلها مسبقاً (يمكن تحسين هذا بفحص تحميل النماذج بدلاً من المكتبة ككل)
+                if (typeof faceapi.nets.tinyFaceDetector.isLoaded === 'undefined' || !faceapi.nets.tinyFaceDetector.isLoaded) {
+                     console.log('Loading face-api.js models...');
+                    await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+                    console.log('Face-api.js tinyFaceDetector model loaded successfully.');
+                }
+
                 // محاولة الحصول على بث الكاميرا
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
@@ -359,9 +377,9 @@
                 };
 
                 video.onplay = async () => {
-                    console.log('Video is playing. Attempting to load face-api.js models...');
+                    console.log('Video is playing. Starting face detection interval.');
                     // Wait for video to have valid dimensions
-                    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure dimensions are available
+                    await new Promise(resolve => setTimeout(resolve, 100));
 
                     if (!video.videoWidth || !video.videoHeight) {
                         console.error('Video dimensions not available.');
@@ -370,60 +388,44 @@
                         return;
                     }
 
-                    try {
-                        // تحميل نماذج face-api.js وبدء الكشف
-                        await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-                        console.log('Face-api.js tinyFaceDetector model loaded successfully.');
+                    // كود كشف الوجه يعتمد الآن على أن النماذج قد تم تحميلها والمكتبة موجودة
+                    if (faceApiLoaded && typeof faceapi !== 'undefined') {
+                       //console.log('Face detection interval running.');
+                       try {
+                           // استخدام النماذج للكشف الآن بعد تحميلها
+                           const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                           
+                           // Use video client dimensions for canvas and display size
+                            const displayWidth = video.clientWidth;
+                            const displayHeight = video.clientHeight;
 
-                        // Use video client dimensions for canvas and display size
-                        const displayWidth = video.clientWidth;
-                        const displayHeight = video.clientHeight;
+                            overlayCanvas.width = displayWidth;
+                            overlayCanvas.height = displayHeight;
+                            overlayCanvas.style.position = 'absolute';
+                            overlayCanvas.style.left = video.offsetLeft + 'px';
+                            overlayCanvas.style.top = video.offsetTop + 'px';
+                            
+                            const displaySize = { width: displayWidth, height: displayHeight };
+                            faceapi.matchDimensions(overlayCanvas, displaySize);
+                            //console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
 
-                        overlayCanvas.width = displayWidth;
-                        overlayCanvas.height = displayHeight;
-                        overlayCanvas.style.position = 'absolute';
-                        overlayCanvas.style.left = video.offsetLeft + 'px';
-                        overlayCanvas.style.top = video.offsetTop + 'px';
-                        
-                        const displaySize = { width: displayWidth, height: displayHeight };
-                        faceapi.matchDimensions(overlayCanvas, displaySize);
-                        console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
-
-                        faceDetectionInterval = setInterval(async () => {
-                            if (typeof faceapi !== 'undefined') {
-                                //console.log('Face detection interval running.');
-                                try {
-                                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-                                    //console.log('Raw Detections:', detections);
-
-                                    // Resize detections to match display size
-                                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                                    //console.log('Resized Detections:', resizedDetections);
-
-                                    const context = overlayCanvas.getContext('2d');
-                                    context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear canvas before drawing
-                                    faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
-                                    //console.log('Draw detections called.');
-                                    
-                                } catch (detectionError) {
-                                    console.error('Error during face detection:', detectionError);
-                                }
-                            } else {
-                                console.warn('faceapi not defined in interval.'); // Should not happen with new logic
-                            }
-                        }, 1000);
-
-                    } catch (modelError) {
-                        console.error('Error loading face-api.js models or starting detection:', modelError);
-                        alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
-                        closeCamera(); // Use closeCamera to ensure cleanup
+                           const context = overlayCanvas.getContext('2d');
+                           context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear canvas before drawing
+                           faceapi.draw.drawDetections(overlayCanvas, detections); // استخدام detections مباشرة بعد مطابقة الأبعاد
+                           //console.log('Draw detections called.');
+                           
+                       } catch (detectionError) {
+                           console.error('Error during face detection:', detectionError);
+                       }
+                    } else {
+                         console.warn('faceapi not loaded or defined during detection.');
                     }
                 };
 
             } catch (error) {
-                // معالجة أخطاء الوصول إلى الكاميرا فقط
-                console.error('Error accessing camera:', error);
-                alert('حدث خطأ أثناء الوصول إلى الكاميرا. يرجى التأكد من منح الإذن وتوفر كاميرا: ' + error.name + ' - ' + error.message);
+                // معالجة أخطاء الوصول إلى الكاميرا وتحميل المكتبة أو النماذج
+                console.error('Error in openCamera:', error);
+                alert('حدث خطأ أثناء تهيئة الكاميرا أو تحميل الموارد. يرجى التأكد من منح الإذن: ' + error.message);
                 isCameraActive = false; // إعادة تعيين الحالة عند الفشل
                 closeCamera(); // استخدام closeCamera لضمان التنظيف
             }
