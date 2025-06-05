@@ -245,6 +245,7 @@
         // متغير لتتبع عملية كشف الوجوه
         let faceDetectionInterval = null;
         let currentFacingMode = 'user'; // نبدأ بالكاميرا الأمامية
+        let isCameraActive = false; // متغير لتعقب حالة الكاميرا
         
         // تسجيل Service Worker
         if ('serviceWorker' in navigator) {
@@ -326,17 +327,29 @@
         
         // دالة فتح الكاميرا - تم التعديل لتصحيح خطأ الوصول للكاميرا وتحسين مزامنة الأبعاد
         async function openCamera(studentId, studentName) {
+            console.log('openCamera called for student:', studentId, studentName);
+
             const video = document.getElementById('camera-preview');
             const overlayCanvas = document.getElementById('overlay');
             const modal = document.getElementById('camera-modal');
 
+            // تجنب فتح الكاميرا إذا كانت نشطة بالفعل أو إذا لم يتم الضغط على زر طالب محدد
+            if (isCameraActive || !studentId) {
+                console.log('openCamera aborted: isCameraActive or no studentId');
+                return;
+            }
+
+            isCameraActive = true;
+
             try {
+                // محاولة الحصول على بث الكاميرا
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: currentFacingMode }
                     }
                 });
                 video.srcObject = stream;
+
                 document.getElementById('current-student-name').textContent = studentName;
                 modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
@@ -358,6 +371,7 @@
                     }
 
                     try {
+                        // تحميل نماذج face-api.js وبدء الكشف
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
 
@@ -407,9 +421,11 @@
                 };
 
             } catch (error) {
+                // معالجة أخطاء الوصول إلى الكاميرا فقط
                 console.error('Error accessing camera:', error);
-                alert('حدث خطأ في الوصول إلى الكاميرا: ' + error.name + ' - ' + error.message);
-                closeCamera(); // Use closeCamera to ensure cleanup
+                alert('حدث خطأ أثناء الوصول إلى الكاميرا. يرجى التأكد من منح الإذن وتوفر كاميرا: ' + error.name + ' - ' + error.message);
+                isCameraActive = false; // إعادة تعيين الحالة عند الفشل
+                closeCamera(); // استخدام closeCamera لضمان التنظيف
             }
         }
         
@@ -432,6 +448,7 @@
              }
 
             document.getElementById('camera-modal').style.display = 'none';
+            isCameraActive = false; // تحديث الحالة عند إغلاق الكاميرا
         }
         
         // دالة التقاط الصورة (لم يتم تعديلها في هذه الخطوة للتركيز على كشف الوجه)
@@ -498,7 +515,8 @@
         });
 
         async function switchCamera() {
-            if (stream) {
+            // تبديل الكاميرا فقط إذا كانت الكاميرا نشطة بالفعل
+            if (stream && isCameraActive) {
                 // إيقاف الكاميرا الحالية
                 stream.getTracks().forEach(track => track.stop());
                 
