@@ -331,7 +331,7 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: currentFacingMode
+                        facingMode: { exact: 'environment' }
                     }
                 });
                 video.srcObject = stream;
