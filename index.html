@@ -184,7 +184,8 @@
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js?v=1.0"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.core.js?v=1.0"></script>
 </head>
 <body>
     <div class="container">
@@ -251,17 +252,15 @@
         
         // تحميل نماذج face-api.js عند بدء تشغيل السكريبت
         // التأكد من تحميل النماذج اللازمة للكشف، الملامح، والتعرف
-        Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-            faceapi.nets.faceLandmark68Net.loadFromUri('./models'), // إضافة نموذج الملامح
-            faceapi.nets.faceRecognitionNet.loadFromUri('./models') // إضافة نموذج التعرف
-        ]).then(() => {
-            console.log('All face-api.js models loaded successfully');
-            // يمكن هنا تفعيل زر التقاط الصورة أو إظهار رسالة تفيد بأن النظام جاهز
-        }).catch(error => {
-            console.error('Error loading face-api.js models:', error);
-            alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه. يرجى التحقق من مجلد models والاتصال بالإنترنت.');
-        });
+        async function loadModels() {
+            const MODEL_URL = '/assistant-census/models'; // Assuming models are in a "models" folder
+            console.log('Loading models from:', MODEL_URL);
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL + '?v=1.0');
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL + '?v=1.0');
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL + '?v=1.0');
+            await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL + '?v=1.0');
+            console.log('Models loaded successfully.');
+        }
         
         // دالة استيراد ملف Excel
         function importExcel() {
