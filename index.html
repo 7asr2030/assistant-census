@@ -357,15 +357,21 @@
                 video.oncanplay = async () => {
                     console.log('Video can play. Setting up face detection.');
 
-                    // تحميل النماذج هنا إذا لم يتم تحميلها مسبقاً
-                     if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector.isLoaded === 'undefined') {
+                    // تأكد من تحميل النماذج. قم بالتحميل إذا لم تكن محملة بالفعل.
+                    if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && !faceapi.nets.tinyFaceDetector.isLoaded) {
                           console.log('Loading face-api.js models...');
-                          await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-                          console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-                      }
+                          try {
+                              await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+                              console.log('Face-api.js tinyFaceDetector model loaded successfully.');
+                          } catch (modelLoadError) {
+                              console.error('Error loading face-api.js models:', modelLoadError);
+                              // يمكن إضافة منطق هنا لإبلاغ المستخدم بفشل التحميل
+                              return; // إيقاف العملية إذا فشل التحميل
+                          }
+                    }
 
-                    // بعد تحميل النماذج، إعداد الـ canvas وبدء حلقة الكشف
-                    if (typeof faceapi !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
+                    // بعد التأكد من تحميل النماذج، إعداد الـ canvas وبدء حلقة الكشف
+                    if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
                         const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
 
                         // إعداد الـ canvas ومطابقة الأبعاد
@@ -391,15 +397,15 @@
                             }
                         }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
                     } else {
-                         console.warn('faceapi or models still not loaded after canplay.');
-                         // يمكن إضافة منطق هنا لإعادة المحاولة أو عرض رسالة خطأ للمستخدم
+                         // هذا السيناريو يجب ألا يحدث إذا كان منطق التحميل أعلاه صحيحاً
+                         console.warn('faceapi or models were expected to be loaded but are not.');
                     }
                 };
 
                 // مسح معالجات الأحداث السابقة لتجنب التكرار
                 video.onloadedmetadata = null;
                 video.onplay = null;
-                // قد نحتاج لمسح oncanplay عند إغلاق الكاميرا أيضاً
+                // مسح oncanplay عند إغلاق الكاميرا أيضاً
 
             } catch (error) {
                 // معالجة أخطاء الوصول إلى الكاميرا أو تحميل الموارد
