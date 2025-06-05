@@ -409,11 +409,14 @@
                             faceapi.matchDimensions(overlayCanvas, displaySize);
                             //console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
 
-                           const context = overlayCanvas.getContext('2d');
-                           context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear canvas before drawing
-                           faceapi.draw.drawDetections(overlayCanvas, detections); // استخدام detections مباشرة بعد مطابقة الأبعاد
-                           //console.log('Draw detections called.');
-                           
+                            const context = overlayCanvas.getContext('2d');
+                            context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear canvas before drawing
+                            
+                            // Resize detections to match display size before drawing
+                            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                            faceapi.draw.drawDetections(overlayCanvas, resizedDetections); // تم التصحيح هنا
+                            //console.log('Draw detections called.');
+                            
                        } catch (detectionError) {
                            console.error('Error during face detection:', detectionError);
                        }
