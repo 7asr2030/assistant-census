@@ -426,9 +426,15 @@
             const studentId = video.dataset.studentId;
             
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // تحديد الأبعاد الجديدة مع الحفاظ على نسبة العرض إلى الارتفاع
+            const maxWidth = 640; // Maximum desired width
+            const scale = Math.min(maxWidth / video.videoWidth, 1);
+            
+            canvas.width = video.videoWidth * scale;
+            canvas.height = video.videoHeight * scale;
+            
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             
             // تحويل الصورة إلى ملف بجودة أعلى (0.9 بدلاً من الافتراضي 0.8)
             canvas.toBlob(blob => {
