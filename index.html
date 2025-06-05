@@ -336,7 +336,7 @@
 
                 // تحميل النماذج قبل بدء تشغيل الفيديو
                 try {
-                    await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+                    await faceapi.nets.tinyFaceDetector.loadFromUri('./models');
                     console.log('Face-api.js models loaded successfully');
                 } catch (modelError) {
                     console.error('Error loading face-api.js models:', modelError);
