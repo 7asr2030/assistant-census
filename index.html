@@ -149,6 +149,7 @@
             height: 100%;
             background-color: rgba(0,0,0,0.8);
             z-index: 1000;
+            display: flex;
             align-items: center;
             justify-content: center;
         }
@@ -327,17 +328,17 @@
         async function openCamera(studentId, studentName) {
             const video = document.getElementById('camera-preview');
             const overlayCanvas = document.getElementById('overlay');
+            const modal = document.getElementById('camera-modal');
 
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: { exact: 'user' }
+                        facingMode: { exact: currentFacingMode }
                     }
                 });
                 video.srcObject = stream;
-
                 document.getElementById('current-student-name').textContent = studentName;
-                document.getElementById('camera-modal').style.display = 'block';
+                modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
 
                 video.onloadedmetadata = async () => {
