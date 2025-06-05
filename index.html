@@ -319,14 +319,32 @@
             const overlayCanvas = document.getElementById('overlay');
 
             try {
-                // تعديل إعدادات الكاميرا لاستخدام الكاميرا الخلفية
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
+                // الحصول على قائمة الكاميرات المتاحة
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                // البحث عن الكاميرا الخلفية
+                let backCamera = null;
+                for (const device of videoDevices) {
+                    if (device.label.toLowerCase().includes('back') || 
+                        device.label.toLowerCase().includes('خلفي') ||
+                        device.label.toLowerCase().includes('rear')) {
+                        backCamera = device.deviceId;
+                        break;
+                    }
+                }
+
+                // إعدادات الكاميرا
+                const constraints = {
+                    video: {
+                        deviceId: backCamera ? { exact: backCamera } : undefined,
                         facingMode: 'environment',
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
-                    } 
-                });
+                    }
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
