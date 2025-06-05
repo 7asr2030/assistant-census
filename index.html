@@ -341,10 +341,10 @@
             isCameraActive = true;
 
             try {
-                 // محاولة الحصول على بث الكاميرا بالوضع الحالي (خلفية أو أمامية)
+                 // محاولة الحصول على بث الكاميرا بالوضع الحالي (خلفية أو أمامية) - تم إزالة 'exact'
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: { exact: currentFacingMode }
+                        facingMode: currentFacingMode // تم إزالة exact
                     }
                 });
                 video.srcObject = stream;
@@ -511,7 +511,7 @@
                     // تشغيل الكاميرا الجديدة
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: {
-                            facingMode: { exact: currentFacingMode }
+                            facingMode: currentFacingMode
                         }
                     });
                     document.getElementById('camera-preview').srcObject = stream;
