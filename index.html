@@ -241,10 +241,10 @@
         console.log('Script execution started');
         let students = [];
         let capturedPhotos = new Map();
-        let stream = null;
-        let faceDetectionInterval = null;
-        let currentFacingMode = 'user';
         let isCameraActive = false;
+        let currentFacingMode = 'environment'; // البدء بالكاميرا الخلفية افتراضياً
+        let stream = null; // لتخزين بث الكاميرا الحالي
+        let faceDetectionInterval = null; // لتخزين معرف الـ setInterval
         
         // تسجيل Service Worker (تم تعطيله مؤقتاً)
         // if ('serviceWorker' in navigator) {
@@ -324,12 +324,12 @@
             updateCounter();
         }
         
-        // دالة فتح الكاميرا - تم التعديل لهيكلة تشغيل face-api.js بشكل صحيح
+        // دالة فتح الكاميرا - الرجوع إلى هيكل أبسط بعد مشاكل WebGL
         async function openCamera(studentId, studentName) {
             console.log('openCamera called for student:', studentId, studentName);
 
             const video = document.getElementById('camera-preview');
-            // const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
+            const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
             const modal = document.getElementById('camera-modal');
 
             // تجنب فتح الكاميرا إذا كانت نشطة بالفعل أو إذا لم يتم الضغط على زر طالب محدد
@@ -341,7 +341,7 @@
             isCameraActive = true;
 
             try {
-                 // محاولة الحصول على بث الكاميرا
+                 // محاولة الحصول على بث الكاميرا بالوضع الحالي (خلفية أو أمامية)
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: currentFacingMode }
@@ -353,35 +353,20 @@
                 modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
 
-                // إعداد معالج الحدث oncanplay لبدء الكشف عندما يكون الفيديو جاهزاً
-                video.oncanplay = async () => {
-                    console.log('Video can play. Setting up face detection.');
+                // بمجرد أن يبدأ الفيديو بالتشغيل، قم بإعداد الـ canvas وبدء الكشف عن الوجه
+                video.onplay = () => {
+                    console.log('Video playback started. Setting up canvas and detection interval.');
 
-                    // تأكد من تحميل النماذج. قم بالتحميل إذا لم تكن محملة بالفعل.
-                    if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && !faceapi.nets.tinyFaceDetector.isLoaded) {
-                          console.log('Loading face-api.js models...');
-                          try {
-                              await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-                              console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-                          } catch (modelLoadError) {
-                              console.error('Error loading face-api.js models:', modelLoadError);
-                              // يمكن إضافة منطق هنا لإبلاغ المستخدم بفشل التحميل
-                              return; // إيقاف العملية إذا فشل التحميل
-                          }
-                    }
+                    // إعداد الـ canvas ومطابقة الأبعاد
+                    const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                    overlayCanvas.width = video.clientWidth;
+                    overlayCanvas.height = video.clientHeight;
+                    faceapi.matchDimensions(overlayCanvas, displaySize);
 
-                    // بعد التأكد من تحميل النماذج، إعداد الـ canvas وبدء حلقة الكشف
-                    if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
-                        const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
-
-                        // إعداد الـ canvas ومطابقة الأبعاد
-                        const displaySize = { width: video.clientWidth, height: video.clientHeight };
-                        overlayCanvas.width = video.clientWidth;
-                        overlayCanvas.height = video.clientHeight;
-                        faceapi.matchDimensions(overlayCanvas, displaySize);
-
-                        // بدء حلقة الكشف والرسم
-                        faceDetectionInterval = setInterval(async () => {
+                    // بدء حلقة الكشف والرسم
+                    faceDetectionInterval = setInterval(async () => {
+                        // التأكد من تحميل faceapi والنماذج قبل الكشف
+                        if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
                             try {
                                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
 
@@ -393,22 +378,30 @@
                                 faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
 
                             } catch (detectionError) {
+                                // طباعة الخطأ للاطلاع عليه في وحدة التحكم
                                 console.error('Error during face detection interval:', detectionError);
+                                // يمكن أن يكون هذا بسبب مشاكل WebGL كما رأينا سابقاً
                             }
-                        }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
-                    } else {
-                         // هذا السيناريو يجب ألا يحدث إذا كان منطق التحميل أعلاه صحيحاً
-                         console.warn('faceapi or models were expected to be loaded but are not.');
-                    }
+                        } else {
+                            console.warn('faceapi or models not loaded during detection interval.');
+                            // هذه الرسالة تشير إلى أن النماذج لم تُحمل بعد، وهو أمر طبيعي في البداية ولكن يجب أن تختفي لاحقاً
+                            // إذا استمرت هذه الرسالة، فقد يعني ذلك فشل تحميل النماذج
+                        }
+                    }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
                 };
 
-                // مسح معالجات الأحداث السابقة لتجنب التكرار
-                video.onloadedmetadata = null;
-                video.onplay = null;
-                // مسح oncanplay عند إغلاق الكاميرا أيضاً
+                // تحميل نماذج face-api.js عند فتح الكاميرا لأول مرة
+                 // نستخدم تحميل غير متزامن ولكن لا ننتظر هنا بشكل مباشر لمنع حظر UI
+                if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector !== 'undefined' && !faceapi.nets.tinyFaceDetector.isLoaded) {
+                     console.log('Attempting to load face-api.js models in the background...');
+                     faceapi.nets.tinyFaceDetector.loadFromUri('models')
+                         .then(() => console.log('Face-api.js tinyFaceDetector model loaded successfully.'))
+                         .catch(error => console.error('Error loading face-api.js models:', error));
+                 }
+
 
             } catch (error) {
-                // معالجة أخطاء الوصول إلى الكاميرا أو تحميل الموارد
+                // معالجة أخطاء الوصول إلى الكاميرا
                 console.error('Error in openCamera:', error);
                 alert('حدث خطأ أثناء تهيئة الكاميرا أو تحميل الموارد. يرجى التأكد من منح الإذن وتوفر كاميرا: ' + error.message);
                 isCameraActive = false; // إعادة تعيين الحالة عند الفشل
@@ -416,7 +409,7 @@
             }
         }
         
-        // دالة إغلاق الكاميرا - تم التعديل لإيقاف كشف الوجه ومسح الـ canvas ومعالج الحدث oncanplay
+        // دالة إغلاق الكاميرا - تم التعديل لإيقاف كشف الوجه ومسح الـ canvas
         function closeCamera() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -432,14 +425,11 @@
              if(overlayCanvas){
                  const context = overlayCanvas.getContext('2d');
                  context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                 // يمكن إعادة تعيين أبعاد الـ canvas أيضاً إذا أردنا
-                 // overlayCanvas.width = 0;
-                 // overlayCanvas.height = 0;
              }
 
-            // مسح معالج oncanplay عند إغلاق الكاميرا
+            // مسح معالج onplay عند إغلاق الكاميرا
             const video = document.getElementById('camera-preview');
-            if(video) { video.oncanplay = null; }
+            if(video) { video.onplay = null; }
 
             document.getElementById('camera-modal').style.display = 'none';
             isCameraActive = false; // تحديث الحالة عند إغلاق الكاميرا
