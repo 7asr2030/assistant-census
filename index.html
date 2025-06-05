@@ -191,6 +191,8 @@
             font-size: 16px;
         }
     </style>
+    <!-- إضافة مكتبة face-api.js مرة أخرى هنا -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -225,6 +227,8 @@
         <div class="camera-container">
             <div class="student-name" id="current-student-name"></div>
             <video id="camera-preview" autoplay></video>
+            <!-- إعادة إضافة canvas لرسم الإطار الأخضر -->
+            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
             <div class="camera-controls">
                 <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
                 <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
@@ -241,7 +245,6 @@
         let faceDetectionInterval = null;
         let currentFacingMode = 'user';
         let isCameraActive = false;
-        let faceApiLoaded = false;
         
         // تسجيل Service Worker (تم تعطيله مؤقتاً)
         // if ('serviceWorker' in navigator) {
@@ -321,14 +324,13 @@
             updateCounter();
         }
         
-        // دالة فتح الكاميرا - تم التعديل لتحميل face-api.js ديناميكياً ومعالجة الأخطاء
+        // دالة فتح الكاميرا - تم التعديل لهيكلة تشغيل face-api.js بشكل صحيح
         async function openCamera(studentId, studentName) {
             console.log('openCamera called for student:', studentId, studentName);
 
             const video = document.getElementById('camera-preview');
+            const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
             const modal = document.getElementById('camera-modal');
-            const cameraContainer = modal.querySelector('.camera-container');
-            let overlayCanvas = null;
 
             // تجنب فتح الكاميرا إذا كانت نشطة بالفعل أو إذا لم يتم الضغط على زر طالب محدد
             if (isCameraActive || !studentId) {
@@ -339,27 +341,7 @@
             isCameraActive = true;
 
             try {
-                // تحميل مكتبة face-api.js ديناميكياً إذا لم يتم تحميلها بعد
-                if (!faceApiLoaded) {
-                    console.log('Loading face-api.js dynamically...');
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
-                        script.defer = true;
-                        script.onload = () => { faceApiLoaded = true; console.log('face-api.js loaded.'); resolve(); };
-                        script.onerror = (e) => { console.error('Failed to load face-api.js', e); reject(new Error('Failed to load face-api.js')); };
-                        document.body.appendChild(script);
-                    });
-                }
-                
-                // تحميل النماذج إذا لم يتم تحميلها مسبقاً
-                if (typeof faceapi.nets.tinyFaceDetector.isLoaded === 'undefined' || !faceapi.nets.tinyFaceDetector.isLoaded) {
-                     console.log('Loading face-api.js models...');
-                    await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-                    console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-                }
-
-                // محاولة الحصول على بث الكاميرا
+                 // محاولة الحصول على بث الكاميرا
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: { exact: currentFacingMode }
@@ -367,61 +349,59 @@
                 });
                 video.srcObject = stream;
 
-                // إنشاء canvas ديناميكياً بواسطة face-api.js وإضافته إلى العنصر الحاوي
-                overlayCanvas = faceapi.createCanvasFromMedia(video);
-                overlayCanvas.style.position = 'absolute';
-                overlayCanvas.style.top = '0';
-                overlayCanvas.style.left = '0';
-                cameraContainer.appendChild(overlayCanvas);
-
                 document.getElementById('current-student-name').textContent = studentName;
                 modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
 
-                video.onloadedmetadata = async () => {
-                    console.log('Video metadata loaded. Waiting for video to play...');
+                // إعداد معالج الحدث oncanplay لبدء الكشف عندما يكون الفيديو جاهزاً
+                video.oncanplay = async () => {
+                    console.log('Video can play. Setting up face detection.');
+
+                    const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
+
+                     // تحميل النماذج هنا إذا لم يتم تحميلها مسبقاً
+                     if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector.isLoaded === 'undefined') {
+                          console.log('Loading face-api.js models...');
+                          await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+                          console.log('Face-api.js tinyFaceDetector model loaded successfully.');
+                      }
+
+                    // إعداد الـ canvas ومطابقة الأبعاد داخل oncanplay
+                    const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                    overlayCanvas.width = video.clientWidth;
+                    overlayCanvas.height = video.clientHeight;
+                    faceapi.matchDimensions(overlayCanvas, displaySize);
+
+                    // بدء حلقة الكشف والرسم
+                    faceDetectionInterval = setInterval(async () => {
+                        if (typeof faceapi !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
+                           try {
+                               const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+
+                               // تغيير أبعاد النتائج لتتناسب مع أبعاد العرض
+                               const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+                               const context = overlayCanvas.getContext('2d');
+                               context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                               faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+
+                           } catch (detectionError) {
+                               console.error('Error during face detection interval:', detectionError);
+                           }
+                        } else {
+                             console.warn('faceapi or models not loaded during detection interval.');
+                        }
+                    }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
                 };
 
-                video.onplay = async () => {
-                    console.log('Video is playing. Starting face detection interval.');
-                    // Wait for video to have valid dimensions
-                    await new Promise(resolve => setTimeout(resolve, 100));
-
-                    if (!video.videoWidth || !video.videoHeight) {
-                        console.error('Video dimensions not available.');
-                        alert('Video dimensions not available.');
-                        closeCamera();
-                        return;
-                    }
-
-                    // كود كشف الوجه يعتمد الآن على أن النماذج قد تم تحميلها والمكتبة موجودة
-                    if (faceApiLoaded && typeof faceapi !== 'undefined') {
-                       try {
-                           const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-
-                           // Ensure canvas matches video display size and position
-                           const displaySize = { width: video.clientWidth, height: video.clientHeight };
-                           faceapi.matchDimensions(overlayCanvas, displaySize);
-
-                           const context = overlayCanvas.getContext('2d');
-                           context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
-                           // Resize detections and draw
-                           const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                           faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
-
-                       } catch (detectionError) {
-                           console.error('Error during face detection:', detectionError);
-                       }
-                    } else {
-                         console.warn('faceapi not loaded or defined during detection.');
-                    }
-                };
+                // مسح معالجات الأحداث السابقة لتجنب التكرار
+                video.onloadedmetadata = null;
+                video.onplay = null;
 
             } catch (error) {
-                // معالجة أخطاء الوصول إلى الكاميرا وتحميل المكتبة أو النماذج
+                // معالجة أخطاء الوصول إلى الكاميرا أو تحميل الموارد
                 console.error('Error in openCamera:', error);
-                alert('حدث خطأ أثناء تهيئة الكاميرا أو تحميل الموارد. يرجى التأكد من منح الإذن: ' + error.message);
+                alert('حدث خطأ أثناء تهيئة الكاميرا أو تحميل الموارد. يرجى التأكد من منح الإذن وتوفر كاميرا: ' + error.message);
                 isCameraActive = false; // إعادة تعيين الحالة عند الفشل
                 closeCamera(); // استخدام closeCamera لضمان التنظيف
             }
@@ -438,10 +418,14 @@
                 clearInterval(faceDetectionInterval);
                 faceDetectionInterval = null;
             }
-             // إزالة canvas الرسم الديناميكي إذا كان موجوداً
-             const existingCanvas = document.querySelector('.camera-container canvas');
-             if(existingCanvas && existingCanvas.parentNode){
-                 existingCanvas.parentNode.removeChild(existingCanvas);
+             // مسح canvas الرسم الثابت
+             const overlayCanvas = document.getElementById('overlay');
+             if(overlayCanvas){
+                 const context = overlayCanvas.getContext('2d');
+                 context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                 // يمكن إعادة تعيين أبعاد الـ canvas أيضاً إذا أردنا
+                 // overlayCanvas.width = 0;
+                 // overlayCanvas.height = 0;
              }
 
             document.getElementById('camera-modal').style.display = 'none';
