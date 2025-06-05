@@ -329,7 +329,7 @@
             console.log('openCamera called for student:', studentId, studentName);
 
             const video = document.getElementById('camera-preview');
-            const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
+            // const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
             const modal = document.getElementById('camera-modal');
 
             // تجنب فتح الكاميرا إذا كانت نشطة بالفعل أو إذا لم يتم الضغط على زر طالب محدد
@@ -357,46 +357,49 @@
                 video.oncanplay = async () => {
                     console.log('Video can play. Setting up face detection.');
 
-                    const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
-
-                     // تحميل النماذج هنا إذا لم يتم تحميلها مسبقاً
+                    // تحميل النماذج هنا إذا لم يتم تحميلها مسبقاً
                      if (typeof faceapi !== 'undefined' && typeof faceapi.nets.tinyFaceDetector.isLoaded === 'undefined') {
                           console.log('Loading face-api.js models...');
                           await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                           console.log('Face-api.js tinyFaceDetector model loaded successfully.');
                       }
 
-                    // إعداد الـ canvas ومطابقة الأبعاد داخل oncanplay
-                    const displaySize = { width: video.clientWidth, height: video.clientHeight };
-                    overlayCanvas.width = video.clientWidth;
-                    overlayCanvas.height = video.clientHeight;
-                    faceapi.matchDimensions(overlayCanvas, displaySize);
+                    // بعد تحميل النماذج، إعداد الـ canvas وبدء حلقة الكشف
+                    if (typeof faceapi !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
+                        const overlayCanvas = document.getElementById('overlay'); // الحصول على الـ canvas الثابت
 
-                    // بدء حلقة الكشف والرسم
-                    faceDetectionInterval = setInterval(async () => {
-                        if (typeof faceapi !== 'undefined' && faceapi.nets.tinyFaceDetector.isLoaded) {
-                           try {
-                               const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                        // إعداد الـ canvas ومطابقة الأبعاد
+                        const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                        overlayCanvas.width = video.clientWidth;
+                        overlayCanvas.height = video.clientHeight;
+                        faceapi.matchDimensions(overlayCanvas, displaySize);
 
-                               // تغيير أبعاد النتائج لتتناسب مع أبعاد العرض
-                               const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                        // بدء حلقة الكشف والرسم
+                        faceDetectionInterval = setInterval(async () => {
+                            try {
+                                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
 
-                               const context = overlayCanvas.getContext('2d');
-                               context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                               faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+                                // تغيير أبعاد النتائج لتتناسب مع أبعاد العرض
+                                const resizedDetections = faceapi.resizeResults(detections, displaySize);
 
-                           } catch (detectionError) {
-                               console.error('Error during face detection interval:', detectionError);
-                           }
-                        } else {
-                             console.warn('faceapi or models not loaded during detection interval.');
-                        }
-                    }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
+                                const context = overlayCanvas.getContext('2d');
+                                context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                                faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+
+                            } catch (detectionError) {
+                                console.error('Error during face detection interval:', detectionError);
+                            }
+                        }, 100); // يمكن تعديل الفاصل الزمني للكشف (بالمللي ثانية)
+                    } else {
+                         console.warn('faceapi or models still not loaded after canplay.');
+                         // يمكن إضافة منطق هنا لإعادة المحاولة أو عرض رسالة خطأ للمستخدم
+                    }
                 };
 
                 // مسح معالجات الأحداث السابقة لتجنب التكرار
                 video.onloadedmetadata = null;
                 video.onplay = null;
+                // قد نحتاج لمسح oncanplay عند إغلاق الكاميرا أيضاً
 
             } catch (error) {
                 // معالجة أخطاء الوصول إلى الكاميرا أو تحميل الموارد
@@ -407,7 +410,7 @@
             }
         }
         
-        // دالة إغلاق الكاميرا - تم التعديل لإيقاف كشف الوجه ومسح الـ canvas
+        // دالة إغلاق الكاميرا - تم التعديل لإيقاف كشف الوجه ومسح الـ canvas ومعالج الحدث oncanplay
         function closeCamera() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -427,6 +430,10 @@
                  // overlayCanvas.width = 0;
                  // overlayCanvas.height = 0;
              }
+
+            // مسح معالج oncanplay عند إغلاق الكاميرا
+            const video = document.getElementById('camera-preview');
+            if(video) { video.oncanplay = null; }
 
             document.getElementById('camera-modal').style.display = 'none';
             isCameraActive = false; // تحديث الحالة عند إغلاق الكاميرا
