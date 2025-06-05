@@ -249,6 +249,20 @@
             });
         }
         
+        // تحميل نماذج face-api.js عند بدء تشغيل السكريبت
+        // التأكد من تحميل النماذج اللازمة للكشف، الملامح، والتعرف
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('./models'), // إضافة نموذج الملامح
+            faceapi.nets.faceRecognitionNet.loadFromUri('./models') // إضافة نموذج التعرف
+        ]).then(() => {
+            console.log('All face-api.js models loaded successfully');
+            // يمكن هنا تفعيل زر التقاط الصورة أو إظهار رسالة تفيد بأن النظام جاهز
+        }).catch(error => {
+            console.error('Error loading face-api.js models:', error);
+            alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه. يرجى التحقق من مجلد models والاتصال بالإنترنت.');
+        });
+        
         // دالة استيراد ملف Excel
         function importExcel() {
             const input = document.createElement('input');
