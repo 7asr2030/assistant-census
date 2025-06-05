@@ -320,7 +320,7 @@
 
             try {
                 // تصحيح الخطأ هنا: استخدام navigator.mediaDevices.getUserMedia فقط
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
