@@ -237,6 +237,7 @@
     </div>
     
     <script>
+        console.log('Script execution started');
         let students = [];
         let capturedPhotos = new Map();
         let stream = null;
@@ -245,18 +246,18 @@
         let isCameraActive = false;
         let faceApiLoaded = false;
         
-        // تسجيل Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful');
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
-            });
-        }
+        // تسجيل Service Worker (تم تعطيله مؤقتاً)
+        // if ('serviceWorker' in navigator) {
+        //     window.addEventListener('load', () => {
+        //         navigator.serviceWorker.register('./sw.js')
+        //             .then(registration => {
+        //                 console.log('ServiceWorker registration successful');
+        //             })
+        //             .catch(err => {
+        //                 console.log('ServiceWorker registration failed: ', err);
+        //             });
+        //     });
+        // }
         
         // دالة استيراد ملف Excel
         function importExcel() {
