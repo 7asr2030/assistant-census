@@ -319,36 +319,11 @@
             const overlayCanvas = document.getElementById('overlay');
 
             try {
-                // محاولة استخدام الكاميرا الخلفية مباشرة
-                const constraints = {
+                stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: { exact: 'environment' },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        facingMode: 'environment'
                     }
-                };
-
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (error) {
-                    // إذا فشلت المحاولة الأولى، نجرب بطريقة أخرى
-                    console.log('First attempt failed, trying alternative method...');
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                    
-                    // في أجهزة Samsung، عادةً ما تكون الكاميرا الخلفية هي الكاميرا الثانية
-                    if (videoDevices.length > 1) {
-                        constraints.video = {
-                            deviceId: { exact: videoDevices[1].deviceId },
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        };
-                        stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    } else {
-                        throw new Error('No back camera found');
-                    }
-                }
-
+                });
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
