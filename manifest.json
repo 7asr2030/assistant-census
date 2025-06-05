@@ -2,7 +2,7 @@
     "name": "مساعد الحصر",
     "short_name": "مساعد الحصر",
     "description": "تطبيق مساعد الحصر للمدارس",
-    "start_url": "assistant.html",
+    "start_url": "index.html",
     "display": "standalone",
     "background_color": "#f7faff",
     "theme_color": "#e67e22",
