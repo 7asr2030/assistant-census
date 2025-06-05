@@ -132,6 +132,14 @@
             background-color: #2980b9;
         }
         
+        .switch-camera-button {
+            background-color: #2ecc71;
+        }
+        
+        .switch-camera-button:hover {
+            background-color: #27ae60;
+        }
+        
         #camera-modal {
             display: none;
             position: fixed;
@@ -223,6 +231,7 @@
             <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
             <div class="camera-controls">
                 <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
+                <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
                 <button id="close-button" onclick="closeCamera()">إغلاق</button>
             </div>
         </div>
@@ -234,6 +243,7 @@
         let stream = null;
         // متغير لتتبع عملية كشف الوجوه
         let faceDetectionInterval = null;
+        let currentFacingMode = 'environment'; // نبدأ بالكاميرا الخلفية
         
         // تسجيل Service Worker
         if ('serviceWorker' in navigator) {
@@ -321,7 +331,7 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: 'environment'
+                        facingMode: currentFacingMode
                     }
                 });
                 video.srcObject = stream;
@@ -485,6 +495,29 @@
                 row.style.display = text.includes(searchText) ? '' : 'none';
             });
         });
+
+        async function switchCamera() {
+            if (stream) {
+                // إيقاف الكاميرا الحالية
+                stream.getTracks().forEach(track => track.stop());
+                
+                // تبديل نوع الكاميرا
+                currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+                
+                try {
+                    // تشغيل الكاميرا الجديدة
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: currentFacingMode
+                        }
+                    });
+                    document.getElementById('camera-preview').srcObject = stream;
+                } catch (error) {
+                    console.error('Error switching camera:', error);
+                    alert('حدث خطأ أثناء تبديل الكاميرا');
+                }
+            }
+        }
     </script>
     <!-- إضافة مكتبة jszip لتحميل الصور كملف مضغوط -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
