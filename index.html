@@ -319,32 +319,36 @@
             const overlayCanvas = document.getElementById('overlay');
 
             try {
-                // الحصول على قائمة الكاميرات المتاحة
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                
-                // البحث عن الكاميرا الخلفية
-                let backCamera = null;
-                for (const device of videoDevices) {
-                    if (device.label.toLowerCase().includes('back') || 
-                        device.label.toLowerCase().includes('خلفي') ||
-                        device.label.toLowerCase().includes('rear')) {
-                        backCamera = device.deviceId;
-                        break;
-                    }
-                }
-
-                // إعدادات الكاميرا
+                // محاولة استخدام الكاميرا الخلفية مباشرة
                 const constraints = {
                     video: {
-                        deviceId: backCamera ? { exact: backCamera } : undefined,
-                        facingMode: 'environment',
+                        facingMode: { exact: 'environment' },
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
                 };
 
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (error) {
+                    // إذا فشلت المحاولة الأولى، نجرب بطريقة أخرى
+                    console.log('First attempt failed, trying alternative method...');
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    // في أجهزة Samsung، عادةً ما تكون الكاميرا الخلفية هي الكاميرا الثانية
+                    if (videoDevices.length > 1) {
+                        constraints.video = {
+                            deviceId: { exact: videoDevices[1].deviceId },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        };
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } else {
+                        throw new Error('No back camera found');
+                    }
+                }
+
                 video.srcObject = stream;
 
                 document.getElementById('current-student-name').textContent = studentName;
