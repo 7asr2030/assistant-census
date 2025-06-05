@@ -345,39 +345,46 @@
                     return;
                 }
 
-                video.onplay = () => {
-                    // استخدام أبعاد الفيديو الفعلية
-                    const displaySize = { 
-                        width: video.videoWidth, 
-                        height: video.videoHeight 
+                video.onplay = async () => {
+                    console.log('Video is playing.');
+
+                    // استخدام أبعاد عرض الفيديو بعد تطبيق CSS
+                    const displaySize = {
+                        width: video.clientWidth,
+                        height: video.clientHeight
                     };
-                    
-                    // ضبط أبعاد الـ canvas لتطابق أبعاد الفيديو
-                    overlayCanvas.width = video.videoWidth;
-                    overlayCanvas.height = video.videoHeight;
-                    
-                    // ضبط موضع الـ canvas
-                    overlayCanvas.style.width = '100%';
-                    overlayCanvas.style.height = 'auto';
-                    
+
+                    // ضبط أبعاد الـ canvas لتطابق أبعاد عرض الفيديو
+                    overlayCanvas.width = video.clientWidth;
+                    overlayCanvas.height = video.clientHeight;
+
+                    // ضبط موضع الـ canvas ليتراكب مع الفيديو
+                    overlayCanvas.style.position = 'absolute';
+                    overlayCanvas.style.left = video.offsetLeft + 'px';
+                    overlayCanvas.style.top = video.offsetTop + 'px';
+                    // تأكد أن حجم الـ canvas المعروض يتطابق مع الفيديو
+                    overlayCanvas.style.width = video.clientWidth + 'px'; // تحديد العرض بالبكسل
+                    overlayCanvas.style.height = video.clientHeight + 'px'; // تحديد الارتفاع بالبكسل
+
                     faceapi.matchDimensions(overlayCanvas, displaySize);
+                    console.log(`Canvas dimensions set to ${displaySize.width}x${displaySize.height}. Starting face detection interval.`);
 
                     faceDetectionInterval = setInterval(async () => {
                         try {
                             const detections = await faceapi.detectAllFaces(
-                                video, 
-                                new faceapi.TinyFaceDetectorOptions({ 
+                                video,
+                                new faceapi.TinyFaceDetectorOptions({
                                     inputSize: 416,
-                                    scoreThreshold: 0.5 
+                                    scoreThreshold: 0.5
                                 })
                             );
 
                             const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                            
+
                             const context = overlayCanvas.getContext('2d');
                             context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                             faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
-                            
+
                         } catch (detectionError) {
                             console.error('Error during face detection:', detectionError);
                         }
