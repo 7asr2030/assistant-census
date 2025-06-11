@@ -154,34 +154,56 @@
         }
         
         .camera-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            background-color: black;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            justify-content: flex-start;
+            background-color: black;
+            width: 100vw;
+            height: 100vh;
+            padding-top: 20px;
+            box-sizing: border-box;
         }
-        
-        #camera-preview {
-            width: 100%;
-            height: 100%;
+        #camera-preview, #overlay {
+            width: 90vw;
+            max-width: 400px;
+            height: 90vw;
+            max-height: 400px;
+            aspect-ratio: 1;
             object-fit: cover;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            background: #000;
+            display: block;
+            margin: 0 auto;
+            position: relative;
         }
-        
         #overlay {
             position: absolute;
-            top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
+            top: 20px;
+            transform: translateX(-50%);
             z-index: 10;
+            pointer-events: none;
+        }
+        .camera-controls {
+            width: 100vw;
+            max-width: 400px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 20px auto 0 auto;
+            position: static;
+            z-index: 20;
+        }
+        @media (max-width: 480px) {
+            #camera-preview, #overlay {
+                width: 95vw;
+                height: 95vw;
+                max-width: 95vw;
+                max-height: 95vw;
+            }
+            .camera-controls {
+                max-width: 95vw;
+            }
         }
 
         .camera-controls {
@@ -292,6 +314,11 @@
                 font-size: 12px;
                 min-width: 80px;
             }
+        }
+
+        /* إضافة خاصية عكس الصورة للكاميرا الأمامية */
+        .front-camera {
+            transform: scaleX(-1);
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
@@ -451,108 +478,15 @@
             document.getElementById('camera-modal').style.display = 'none';
         }
 
-        async function switchCamera() {
-            if (isSwitchingCamera) return;
-            isSwitchingCamera = true;
-
-            try {
-                if (faceDetectionInterval) {
-                    clearInterval(faceDetectionInterval);
-                    faceDetectionInterval = null;
-                }
-
-                cleanupResources();
-
-                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-
-                // تطبيق نفس الإعدادات المربعة عند تبديل الكاميرا
-                const constraints = {
-                    video: {
-                        facingMode: { exact: currentFacingMode },
-                        width: { ideal: 640 },
-                        height: { ideal: 640 },
-                        aspectRatio: { ideal: 1 },
-                        frameRate: { ideal: 24 }
-                    }
-                };
-
-                // إضافة إعدادات التركيز للكاميرا الخلفية
-                if (currentFacingMode === 'environment') {
-                    constraints.video.advanced = [{
-                        focusMode: 'continuous',
-                        exposureMode: 'continuous',
-                        whiteBalanceMode: 'continuous'
-                    }];
-                }
-
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                const video = document.getElementById('camera-preview');
-                video.srcObject = stream;
-
-                // تحديث حجم الفيديو بعد التبديل
-                const screenSize = Math.min(window.innerWidth, window.innerHeight);
-                const videoSize = Math.min(screenSize * 0.9, 640);
-                video.style.width = `${videoSize}px`;
-                video.style.height = `${videoSize}px`;
-                video.style.objectFit = 'cover';
-
-                document.getElementById('camera-indicator').textContent = currentFacingMode === 'user' ? '1' : '2';
-
-                setTimeout(() => {
-                    if (stream) {
-                        startFaceDetection();
-                    }
-                }, 500);
-
-            } catch (error) {
-                console.error('Error switching camera:', error);
-                alert('حدث خطأ أثناء تبديل الكاميرا');
-                closeCamera();
-            } finally {
-                isSwitchingCamera = false;
-            }
-        }
-
-        // دالة بدء كشف الوجه
-        async function startFaceDetection() {
-            const video = document.getElementById('camera-preview');
-            const overlayCanvas = document.getElementById('overlay');
-
-            try {
-                const displayWidth = video.clientWidth;
-                const displayHeight = video.clientHeight;
-
-                overlayCanvas.width = displayWidth;
-                overlayCanvas.height = displayHeight;
-                
-                const displaySize = { width: displayWidth, height: displayHeight };
-                faceapi.matchDimensions(overlayCanvas, displaySize);
-
-                let isProcessing = false;
-                faceDetectionInterval = setInterval(async () => {
-                    if (typeof faceapi !== 'undefined' && !isProcessing && stream) {
-                        isProcessing = true;
-                        try {
-                            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
-                                inputSize: 224,
-                                scoreThreshold: 0.3
-                            }));
-
-                            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                            const context = overlayCanvas.getContext('2d');
-                            context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                            faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
-                            
-                        } catch (detectionError) {
-                            console.error('Error during face detection:', detectionError);
-                        } finally {
-                            isProcessing = false;
-                        }
-                    }
-                }, 200);
-            } catch (error) {
-                console.error('Error starting face detection:', error);
-            }
+        // دالة للحصول على deviceId الخاص بالكاميرا الخلفية الأساسية
+        async function getMainBackCameraId() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            // ابحث عن الكاميرا الخلفية التي لا تحتوي على كلمات wide/ultra/macro في الاسم
+            const backCams = devices.filter(d => d.kind === 'videoinput' && d.label.toLowerCase().includes('back'));
+            // حاول إيجاد كاميرا لا تحتوي على ultra/macro/wide في الاسم
+            let mainBack = backCams.find(d => !/ultra|macro|wide/.test(d.label.toLowerCase()));
+            if (!mainBack && backCams.length > 0) mainBack = backCams[0];
+            return mainBack ? mainBack.deviceId : null;
         }
 
         async function openCamera(studentId, studentName) {
@@ -561,28 +495,43 @@
             const cameraIndicator = document.getElementById('camera-indicator');
 
             try {
-                // تحسين إعدادات الكاميرا للعرض المربع والتركيز
-                const constraints = {
+                let constraints = {
                     video: {
-                        facingMode: { exact: currentFacingMode },
                         width: { ideal: 640 },
-                        height: { ideal: 640 }, // جعل الارتفاع مساوياً للعرض
-                        aspectRatio: { ideal: 1 }, // نسبة 1:1 للعرض المربع
+                        height: { ideal: 640 },
+                        aspectRatio: { ideal: 1 },
                         frameRate: { ideal: 24 }
                     }
                 };
 
-                // إضافة إعدادات التركيز للكاميرا الخلفية
+                // إذا كانت الكاميرا الخلفية، حاول اختيار العدسة الأساسية وضبط الزوم
                 if (currentFacingMode === 'environment') {
+                    const deviceId = await getMainBackCameraId();
+                    if (deviceId) {
+                        constraints.video.deviceId = { exact: deviceId };
+                    } else {
+                        constraints.video.facingMode = { exact: 'environment' };
+                    }
                     constraints.video.advanced = [{
                         focusMode: 'continuous',
                         exposureMode: 'continuous',
-                        whiteBalanceMode: 'continuous'
+                        whiteBalanceMode: 'continuous',
+                        zoom: 1 // إذا كان مدعومًا
                     }];
+                } else {
+                    constraints.video.facingMode = { exact: 'user' };
                 }
 
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                
+                // إضافة أو إزالة الكلاس بناءً على نوع الكاميرا
+                if (currentFacingMode === 'user') {
+                    video.classList.add('front-camera');
+                } else {
+                    video.classList.remove('front-camera');
+                }
+
                 document.getElementById('current-student-name').textContent = studentName;
                 cameraIndicator.textContent = currentFacingMode === 'user' ? '1' : '2';
                 modal.style.display = 'flex';
@@ -590,7 +539,7 @@
 
                 video.onloadedmetadata = async () => {
                     const screenSize = Math.min(window.innerWidth, window.innerHeight);
-                    const videoSize = Math.min(screenSize * 0.9, 640); // تحديد الحجم الأقصى
+                    const videoSize = Math.min(screenSize * 0.9, 640);
                     
                     video.style.width = `${videoSize}px`;
                     video.style.height = `${videoSize}px`;
@@ -624,6 +573,127 @@
             }
         }
         
+        async function switchCamera() {
+            if (isSwitchingCamera) return;
+            isSwitchingCamera = true;
+
+            try {
+                if (faceDetectionInterval) {
+                    clearInterval(faceDetectionInterval);
+                    faceDetectionInterval = null;
+                }
+
+                cleanupResources();
+
+                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+                const video = document.getElementById('camera-preview');
+
+                let constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 640 },
+                        aspectRatio: { ideal: 1 },
+                        frameRate: { ideal: 24 }
+                    }
+                };
+
+                if (currentFacingMode === 'environment') {
+                    const deviceId = await getMainBackCameraId();
+                    if (deviceId) {
+                        constraints.video.deviceId = { exact: deviceId };
+                    } else {
+                        constraints.video.facingMode = { exact: 'environment' };
+                    }
+                    constraints.video.advanced = [{
+                        focusMode: 'continuous',
+                        exposureMode: 'continuous',
+                        whiteBalanceMode: 'continuous',
+                        zoom: 1
+                    }];
+                } else {
+                    constraints.video.facingMode = { exact: 'user' };
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+
+                if (currentFacingMode === 'user') {
+                    video.classList.add('front-camera');
+                } else {
+                    video.classList.remove('front-camera');
+                }
+
+                const screenSize = Math.min(window.innerWidth, window.innerHeight);
+                const videoSize = Math.min(screenSize * 0.9, 640);
+                video.style.width = `${videoSize}px`;
+                video.style.height = `${videoSize}px`;
+                video.style.objectFit = 'cover';
+
+                document.getElementById('camera-indicator').textContent = currentFacingMode === 'user' ? '1' : '2';
+
+                setTimeout(() => {
+                    if (stream) {
+                        startFaceDetection();
+                    }
+                }, 500);
+
+            } catch (error) {
+                console.error('Error switching camera:', error);
+                alert('حدث خطأ أثناء تبديل الكاميرا');
+                closeCamera();
+            } finally {
+                isSwitchingCamera = false;
+            }
+        }
+
+        // دالة بدء كشف الوجه
+        async function startFaceDetection() {
+            const video = document.getElementById('camera-preview');
+            const overlayCanvas = document.getElementById('overlay');
+
+            try {
+                // استخدم الأبعاد الحقيقية للفيديو وليس أبعاد العنصر المعروض
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                overlayCanvas.width = videoWidth;
+                overlayCanvas.height = videoHeight;
+
+                // اجعل الـ overlay فوق الفيديو في نفس المكان
+                overlayCanvas.style.width = video.style.width;
+                overlayCanvas.style.height = video.style.height;
+                overlayCanvas.style.left = video.offsetLeft + 'px';
+                overlayCanvas.style.top = video.offsetTop + 'px';
+
+                const displaySize = { width: videoWidth, height: videoHeight };
+                faceapi.matchDimensions(overlayCanvas, displaySize);
+
+                let isProcessing = false;
+                faceDetectionInterval = setInterval(async () => {
+                    if (typeof faceapi !== 'undefined' && !isProcessing && stream) {
+                        isProcessing = true;
+                        try {
+                            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
+                                inputSize: 224,
+                                scoreThreshold: 0.3
+                            }));
+
+                            // Resize detections to match the real video size
+                            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                            const context = overlayCanvas.getContext('2d');
+                            context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                            faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+                        } catch (detectionError) {
+                            console.error('Error during face detection:', detectionError);
+                        } finally {
+                            isProcessing = false;
+                        }
+                    }
+                }, 200);
+            } catch (error) {
+                console.error('Error starting face detection:', error);
+            }
+        }
+
         // دالة التقاط الصورة (لم يتم تعديلها في هذه الخطوة للتركيز على كشف الوجه)
         function capturePhoto() {
             const video = document.getElementById('camera-preview');
@@ -686,29 +756,6 @@
                 row.style.display = text.includes(searchText) ? '' : 'none';
             });
         });
-
-        // تحديث CSS للعرض المربع
-        const style = document.createElement('style');
-        style.textContent = `
-            #camera-preview {
-                aspect-ratio: 1;
-                object-fit: cover;
-                border-radius: 0;
-            }
-            
-            .camera-container {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background-color: black;
-            }
-            
-            #overlay {
-                aspect-ratio: 1;
-                object-fit: cover;
-            }
-        `;
-        document.head.appendChild(style);
     </script>
     <!-- إضافة مكتبة jszip لتحميل الصور كملف مضغوط -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
