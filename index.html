@@ -652,19 +652,18 @@
             const overlayCanvas = document.getElementById('overlay');
 
             try {
-                // استخدم الأبعاد الحقيقية للفيديو وليس أبعاد العنصر المعروض
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                overlayCanvas.width = videoWidth;
-                overlayCanvas.height = videoHeight;
+                // استخدم أبعاد العنصر المعروض (وليس أبعاد الفيديو الحقيقية)
+                const displayWidth = video.clientWidth;
+                const displayHeight = video.clientHeight;
+                overlayCanvas.width = displayWidth;
+                overlayCanvas.height = displayHeight;
 
-                // اجعل الـ overlay فوق الفيديو في نفس المكان
                 overlayCanvas.style.width = video.style.width;
                 overlayCanvas.style.height = video.style.height;
                 overlayCanvas.style.left = video.offsetLeft + 'px';
                 overlayCanvas.style.top = video.offsetTop + 'px';
 
-                const displaySize = { width: videoWidth, height: videoHeight };
+                const displaySize = { width: displayWidth, height: displayHeight };
                 faceapi.matchDimensions(overlayCanvas, displaySize);
 
                 let isProcessing = false;
@@ -677,7 +676,7 @@
                                 scoreThreshold: 0.3
                             }));
 
-                            // Resize detections to match the real video size
+                            // Resize detections to match the displayed size
                             const resizedDetections = faceapi.resizeResults(detections, displaySize);
                             const context = overlayCanvas.getContext('2d');
                             context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
