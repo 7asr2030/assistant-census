@@ -147,7 +147,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.8);
+            background-color: rgba(0,0,0,0.9);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -155,40 +155,110 @@
         
         .camera-container {
             position: relative;
-            width: 90vw;
-            max-width: 450px;
+            width: 100%;
+            height: 100%;
             margin: 0;
-            background-color: white;
-            padding: 15px;
-            border-radius: 10px;
-            max-height: 80vh;
-            box-sizing: border-box;
-            overflow-y: auto;
+            background-color: black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         
         #camera-preview {
             width: 100%;
-            height: auto;
-            border-radius: 8px;
+            height: 100%;
             object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         
         .camera-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
             display: flex;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 15px;
             justify-content: center;
+            padding: 10px;
+            z-index: 1001;
+        }
+        
+        .camera-button {
+            background-color: rgba(52, 152, 219, 0.9);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 16px;
+            font-weight: bold;
+            min-width: 120px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        
+        .camera-button:hover {
+            background-color: #2980b9;
+        }
+        
+        .switch-camera-button {
+            background-color: rgba(46, 204, 113, 0.9);
+        }
+        
+        .switch-camera-button:hover {
+            background-color: #27ae60;
+        }
+        
+        #close-button {
+            background-color: rgba(231, 76, 60, 0.9);
+        }
+        
+        #close-button:hover {
+            background-color: #c0392b;
         }
         
         .student-name {
-            position: absolute;
-            top: 10px;
-            right: 10px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
             background-color: rgba(0,0,0,0.7);
             color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 18px;
+            z-index: 1001;
+        }
+        
+        .camera-indicator {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 18px;
+            z-index: 1001;
+        }
+
+        @media (max-width: 768px) {
+            .camera-controls {
+                bottom: 30px;
+            }
+            
+            .camera-button {
+                padding: 15px 30px;
+                font-size: 18px;
+                min-width: 140px;
+            }
+            
+            .student-name, .camera-indicator {
+                font-size: 20px;
+                padding: 10px 20px;
+            }
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
@@ -226,13 +296,13 @@
     <div id="camera-modal">
         <div class="camera-container">
             <div class="student-name" id="current-student-name"></div>
-            <video id="camera-preview" autoplay></video>
-            <!-- إضافة canvas لرسم الإطار الأخضر -->
+            <div class="camera-indicator" id="camera-indicator"></div>
+            <video id="camera-preview" autoplay playsinline></video>
             <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
             <div class="camera-controls">
-                <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
+                <button id="capture-button" class="camera-button" onclick="capturePhoto()">التقاط صورة</button>
                 <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
-                <button id="close-button" onclick="closeCamera()">إغلاق</button>
+                <button id="close-button" class="camera-button" onclick="closeCamera()">إغلاق</button>
             </div>
         </div>
     </div>
@@ -328,15 +398,16 @@
             const video = document.getElementById('camera-preview');
             const overlayCanvas = document.getElementById('overlay');
             const modal = document.getElementById('camera-modal');
+            const cameraIndicator = document.getElementById('camera-indicator');
 
             try {
-                // تحسين إعدادات الكاميرا
+                // تحسين إعدادات الكاميرا للأداء السريع
                 const constraints = {
                     video: {
                         facingMode: { exact: currentFacingMode },
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        aspectRatio: { ideal: 1.777777778 }, // 16:9
+                        width: { ideal: 1280 }, // تقليل الدقة لتحسين الأداء
+                        height: { ideal: 720 },
+                        aspectRatio: { ideal: 1.777777778 },
                         frameRate: { ideal: 30 }
                     }
                 };
@@ -344,20 +415,18 @@
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 document.getElementById('current-student-name').textContent = studentName;
+                cameraIndicator.textContent = currentFacingMode === 'user' ? '1' : '2';
                 modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
 
                 video.onloadedmetadata = async () => {
-                    console.log('Video metadata loaded. Waiting for video to play...');
-                    // تعيين حجم الفيديو ليكون متناسباً مع الحاوية
                     video.style.width = '100%';
                     video.style.height = 'auto';
                     video.style.objectFit = 'cover';
                 };
 
                 video.onplay = async () => {
-                    console.log('Video is playing. Attempting to load face-api.js models...');
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 50)); // تقليل وقت الانتظار
 
                     if (!video.videoWidth || !video.videoHeight) {
                         console.error('Video dimensions not available.');
@@ -368,8 +437,7 @@
 
                     try {
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-                        console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-
+                        
                         const displayWidth = video.clientWidth;
                         const displayHeight = video.clientHeight;
 
@@ -386,8 +454,8 @@
                             if (typeof faceapi !== 'undefined') {
                                 try {
                                     const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: 416, // زيادة دقة الكشف
-                                        scoreThreshold: 0.5 // تعديل عتبة الثقة
+                                        inputSize: 320, // تقليل حجم الإدخال لتحسين السرعة
+                                        scoreThreshold: 0.3 // تقليل عتبة الثقة للكشف السريع
                                     }));
 
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
@@ -399,7 +467,7 @@
                                     console.error('Error during face detection:', detectionError);
                                 }
                             }
-                        }, 100); // تقليل الفاصل الزمني لتحسين الاستجابة
+                        }, 50); // تقليل الفاصل الزمني للكشف المستمر
 
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
@@ -501,20 +569,22 @@
 
         async function switchCamera() {
             if (stream) {
-                // إيقاف الكاميرا الحالية
                 stream.getTracks().forEach(track => track.stop());
                 
-                // تبديل نوع الكاميرا
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
                 
                 try {
-                    // تشغيل الكاميرا الجديدة
+                    // تحسين إعدادات الكاميرا للتبديل السريع
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: {
-                            facingMode: { exact: currentFacingMode }
+                            facingMode: { exact: currentFacingMode },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            frameRate: { ideal: 30 }
                         }
                     });
                     document.getElementById('camera-preview').srcObject = stream;
+                    document.getElementById('camera-indicator').textContent = currentFacingMode === 'user' ? '1' : '2';
                 } catch (error) {
                     console.error('Error switching camera:', error);
                     alert('حدث خطأ أثناء تبديل الكاميرا');
