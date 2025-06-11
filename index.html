@@ -498,8 +498,6 @@
                 let constraints = {
                     video: {
                         width: { ideal: 640 },
-                        height: { ideal: 640 },
-                        aspectRatio: { ideal: 1 },
                         frameRate: { ideal: 24 }
                     }
                 };
@@ -539,8 +537,7 @@
 
                 video.onloadedmetadata = async () => {
                     const screenSize = Math.min(window.innerWidth, window.innerHeight);
-                    const videoSize = Math.min(screenSize * 0.9, 640);
-                    
+                    const videoSize = Math.min(screenSize * 0.9, 400);
                     video.style.width = `${videoSize}px`;
                     video.style.height = `${videoSize}px`;
                     video.style.objectFit = 'cover';
@@ -591,8 +588,6 @@
                 let constraints = {
                     video: {
                         width: { ideal: 640 },
-                        height: { ideal: 640 },
-                        aspectRatio: { ideal: 1 },
                         frameRate: { ideal: 24 }
                     }
                 };
@@ -624,7 +619,7 @@
                 }
 
                 const screenSize = Math.min(window.innerWidth, window.innerHeight);
-                const videoSize = Math.min(screenSize * 0.9, 640);
+                const videoSize = Math.min(screenSize * 0.9, 400);
                 video.style.width = `${videoSize}px`;
                 video.style.height = `${videoSize}px`;
                 video.style.objectFit = 'cover';
