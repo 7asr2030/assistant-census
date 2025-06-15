@@ -226,7 +226,7 @@
     <div id="camera-modal">
         <div class="camera-container">
             <div class="student-name" id="current-student-name"></div>
-            <video id="camera-preview" autoplay></video>
+            <video id="camera-preview" autoplay playsinline></video>
             <!-- إضافة canvas لرسم الإطار الأخضر -->
             <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
             <div class="camera-controls">
@@ -340,68 +340,51 @@
                 modal.style.display = 'flex';
                 video.dataset.studentId = studentId;
 
-                video.onloadedmetadata = async () => {
-                    console.log('Video metadata loaded. Waiting for video to play...');
-                };
-
                 video.onplay = async () => {
-                    console.log('Video is playing. Attempting to load face-api.js models...');
-                    // Wait for video to have valid dimensions
-                    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure dimensions are available
-
-                    if (!video.videoWidth || !video.videoHeight) {
-                        console.error('Video dimensions not available.');
-                        alert('Video dimensions not available.');
-                        closeCamera();
-                        return;
-                    }
+                    // انتظر حتى تتوفر أبعاد الفيديو الحقيقية
+                    await new Promise(resolve => {
+                        if (video.videoWidth && video.videoHeight) return resolve();
+                        video.onloadeddata = resolve;
+                    });
 
                     try {
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
 
-                        // Use video client dimensions for canvas and display size
-                        const displayWidth = video.clientWidth;
-                        const displayHeight = video.clientHeight;
+                        // استخدم أبعاد الفيديو الحقيقية
+                        const displayWidth = video.videoWidth;
+                        const displayHeight = video.videoHeight;
 
                         overlayCanvas.width = displayWidth;
                         overlayCanvas.height = displayHeight;
                         overlayCanvas.style.position = 'absolute';
                         overlayCanvas.style.left = video.offsetLeft + 'px';
                         overlayCanvas.style.top = video.offsetTop + 'px';
-                        
+                        overlayCanvas.style.width = video.style.width;
+                        overlayCanvas.style.height = video.style.height;
+
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
-                        console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
+                        console.log(`Canvas dimensions matched to video size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
 
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
-                                //console.log('Face detection interval running.');
                                 try {
                                     const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-                                    //console.log('Raw Detections:', detections);
-
-                                    // Resize detections to match display size
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                                    //console.log('Resized Detections:', resizedDetections);
-
                                     const context = overlayCanvas.getContext('2d');
-                                    context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear canvas before drawing
+                                    context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                                     faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
-                                    //console.log('Draw detections called.');
-                                    
                                 } catch (detectionError) {
                                     console.error('Error during face detection:', detectionError);
                                 }
-                            } else {
-                                console.warn('faceapi not defined in interval.'); // Should not happen with new logic
                             }
                         }, 1000);
 
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
                         alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
-                        closeCamera(); // Use closeCamera to ensure cleanup
+                        closeCamera();
                     }
                 };
 
