@@ -346,15 +346,17 @@
                         if (video.videoWidth && video.videoHeight) return resolve();
                         video.onloadeddata = resolve;
                     });
-
+                    // أوقف أي interval سابق قبل إنشاء جديد
+                    if (faceDetectionInterval) {
+                        clearInterval(faceDetectionInterval);
+                        faceDetectionInterval = null;
+                    }
                     try {
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-
-                        // استخدم أبعاد الفيديو الحقيقية
-                        const displayWidth = video.videoWidth;
-                        const displayHeight = video.videoHeight;
-
+                        // استخدم أبعاد العرض الفعلية للفيديو على الشاشة
+                        const displayWidth = video.clientWidth;
+                        const displayHeight = video.clientHeight;
                         overlayCanvas.width = displayWidth;
                         overlayCanvas.height = displayHeight;
                         overlayCanvas.style.position = 'absolute';
@@ -362,11 +364,9 @@
                         overlayCanvas.style.top = video.offsetTop + 'px';
                         overlayCanvas.style.width = video.style.width;
                         overlayCanvas.style.height = video.style.height;
-
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
-                        console.log(`Canvas dimensions matched to video size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
-
+                        console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
                                 try {
@@ -380,7 +380,6 @@
                                 }
                             }
                         }, 1000);
-
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
                         alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
@@ -401,18 +400,15 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
-            // إيقاف Interval كشف الوجه
             if (faceDetectionInterval) {
                 clearInterval(faceDetectionInterval);
                 faceDetectionInterval = null;
             }
-             // مسح canvas الرسم
-             const overlayCanvas = document.getElementById('overlay');
-             if(overlayCanvas){
-                 const context = overlayCanvas.getContext('2d');
-                 context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-             }
-
+            const overlayCanvas = document.getElementById('overlay');
+            if (overlayCanvas) {
+                const context = overlayCanvas.getContext('2d');
+                context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
             document.getElementById('camera-modal').style.display = 'none';
         }
         
@@ -481,25 +477,15 @@
 
         async function switchCamera() {
             if (stream) {
-                // إيقاف الكاميرا الحالية
                 stream.getTracks().forEach(track => track.stop());
-                
-                // تبديل نوع الكاميرا
-                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                
-                try {
-                    // تشغيل الكاميرا الجديدة
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: { exact: currentFacingMode }
-                        }
-                    });
-                    document.getElementById('camera-preview').srcObject = stream;
-                } catch (error) {
-                    console.error('Error switching camera:', error);
-                    alert('حدث خطأ أثناء تبديل الكاميرا');
-                }
+                stream = null;
             }
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            const video = document.getElementById('camera-preview');
+            const studentId = video.dataset.studentId;
+            const studentName = document.getElementById('current-student-name').textContent;
+            // أعد فتح الكاميرا بنفس منطق openCamera
+            openCamera(studentId, studentName);
         }
     </script>
     <!-- إضافة مكتبة jszip لتحميل الصور كملف مضغوط -->
