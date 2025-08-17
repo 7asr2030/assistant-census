@@ -398,43 +398,36 @@
                                     // تحسين خيارات كشف الوجه للأجهزة المحمولة
                                     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                                     const options = new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: isMobile ? 320 : 416,
-                                        scoreThreshold: isMobile ? 0.3 : 0.2
+                                        inputSize: isMobile ? 416 : 512,
+                                        scoreThreshold: isMobile ? 0.4 : 0.3
                                     });
                                     const detections = await faceapi.detectAllFaces(video, options);
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                                     const context = overlayCanvas.getContext('2d');
                                     context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                                     
-                                    // رسم الإطار حول الوجه كاملاً
+                                    // رسم الإطار حول الوجه مع النسبة المئوية
                                     resizedDetections.forEach(detection => {
-                                        const { box } = detection;
+                                        const { box, score } = detection;
                                         
-                                        // تحسين توسيع الإطار ليكون أقرب للوجه
+                                        // توسيع بسيط للإطار ليشمل الوجه كاملاً
                                         const expandedBox = {
-                                            x: Math.max(0, box.x - box.width * 0.05),
-                                            y: Math.max(0, box.y - box.height * 0.1),
-                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.1),
-                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.2)
+                                            x: Math.max(0, box.x - box.width * 0.02),
+                                            y: Math.max(0, box.y - box.height * 0.05),
+                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.04),
+                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.1)
                                         };
                                         
-                                        // التحقق من أن الإطار الموسع لا يكون كبيراً جداً
-                                        const maxExpansion = 1.5;
-                                        const finalBox = {
-                                            x: expandedBox.width > box.width * maxExpansion ? box.x : expandedBox.x,
-                                            y: expandedBox.height > box.height * maxExpansion ? box.y : expandedBox.y,
-                                            width: expandedBox.width > box.width * maxExpansion ? box.width : expandedBox.width,
-                                            height: expandedBox.height > box.height * maxExpansion ? box.height : expandedBox.height
-                                        };
-                                        
+                                        // استخدام الإطار الأصلي بدون توسيع
                                         context.strokeStyle = '#00ff00';
                                         context.lineWidth = 3;
-                                        context.strokeRect(finalBox.x, finalBox.y, finalBox.width, finalBox.height);
+                                        context.strokeRect(expandedBox.x, expandedBox.y, expandedBox.width, expandedBox.height);
                                         
-                                        // إضافة نص "وجه" فوق الإطار
+                                        // إضافة النسبة المئوية
+                                        const confidence = Math.round(score * 100);
                                         context.fillStyle = '#00ff00';
                                         context.font = 'bold 14px Arial';
-                                        context.fillText('وجه', finalBox.x, finalBox.y - 5);
+                                        context.fillText(`وجه (${confidence}%)`, expandedBox.x, expandedBox.y - 5);
                                     });
                                     
                                     if (resizedDetections.length > 0) {
