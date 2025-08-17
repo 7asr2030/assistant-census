@@ -385,9 +385,6 @@
                         overlayCanvas.style.height = '100%';
                         overlayCanvas.style.pointerEvents = 'none';
                         
-                        // إضافة خلفية شفافة للتصحيح (يمكن إزالتها لاحقاً)
-                        overlayCanvas.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-                        
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
                         
@@ -398,11 +395,23 @@
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
                                 try {
-                                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                                    // استخدام خيارات محسنة لكشف الوجه كاملاً
+                                    const options = new faceapi.TinyFaceDetectorOptions({
+                                        inputSize: 320,
+                                        scoreThreshold: 0.3
+                                    });
+                                    const detections = await faceapi.detectAllFaces(video, options);
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                                     const context = overlayCanvas.getContext('2d');
                                     context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                                    
+                                    // استخدام الطريقة الافتراضية لرسم الإطار
                                     faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+                                    
+                                    // إذا لم تظهر الإطارات، استخدم الرسم المخصص
+                                    if (resizedDetections.length > 0) {
+                                        console.log('Faces detected:', resizedDetections.length);
+                                    }
                                 } catch (detectionError) {
                                     console.error('Error during face detection:', detectionError);
                                 }
