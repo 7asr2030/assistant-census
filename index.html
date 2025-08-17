@@ -395,10 +395,11 @@
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
                                 try {
-                                    // استخدام خيارات محسنة لكشف الوجه كاملاً
+                                    // تحسين خيارات كشف الوجه للأجهزة المحمولة
+                                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                                     const options = new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: 416,
-                                        scoreThreshold: 0.2
+                                        inputSize: isMobile ? 320 : 416,
+                                        scoreThreshold: isMobile ? 0.3 : 0.2
                                     });
                                     const detections = await faceapi.detectAllFaces(video, options);
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
@@ -409,22 +410,31 @@
                                     resizedDetections.forEach(detection => {
                                         const { box } = detection;
                                         
-                                        // توسيع الإطار ليشمل الوجه كاملاً
+                                        // تحسين توسيع الإطار ليكون أقرب للوجه
                                         const expandedBox = {
-                                            x: Math.max(0, box.x - box.width * 0.1),
-                                            y: Math.max(0, box.y - box.height * 0.2),
-                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.2),
-                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.4)
+                                            x: Math.max(0, box.x - box.width * 0.05),
+                                            y: Math.max(0, box.y - box.height * 0.1),
+                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.1),
+                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.2)
+                                        };
+                                        
+                                        // التحقق من أن الإطار الموسع لا يكون كبيراً جداً
+                                        const maxExpansion = 1.5;
+                                        const finalBox = {
+                                            x: expandedBox.width > box.width * maxExpansion ? box.x : expandedBox.x,
+                                            y: expandedBox.height > box.height * maxExpansion ? box.y : expandedBox.y,
+                                            width: expandedBox.width > box.width * maxExpansion ? box.width : expandedBox.width,
+                                            height: expandedBox.height > box.height * maxExpansion ? box.height : expandedBox.height
                                         };
                                         
                                         context.strokeStyle = '#00ff00';
-                                        context.lineWidth = 4;
-                                        context.strokeRect(expandedBox.x, expandedBox.y, expandedBox.width, expandedBox.height);
+                                        context.lineWidth = 3;
+                                        context.strokeRect(finalBox.x, finalBox.y, finalBox.width, finalBox.height);
                                         
                                         // إضافة نص "وجه" فوق الإطار
                                         context.fillStyle = '#00ff00';
-                                        context.font = 'bold 16px Arial';
-                                        context.fillText('وجه', expandedBox.x, expandedBox.y - 10);
+                                        context.font = 'bold 14px Arial';
+                                        context.fillText('وجه', finalBox.x, finalBox.y - 5);
                                     });
                                     
                                     if (resizedDetections.length > 0) {
