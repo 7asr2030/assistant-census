@@ -171,6 +171,7 @@
             height: auto;
             border-radius: 8px;
             object-fit: cover;
+            display: block;
         }
         
         .camera-controls {
@@ -189,6 +190,15 @@
             padding: 5px 10px;
             border-radius: 5px;
             font-size: 16px;
+            z-index: 20;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            pointer-events: none;
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
@@ -346,27 +356,54 @@
                         if (video.videoWidth && video.videoHeight) return resolve();
                         video.onloadeddata = resolve;
                     });
+                    
                     // أوقف أي interval سابق قبل إنشاء جديد
                     if (faceDetectionInterval) {
                         clearInterval(faceDetectionInterval);
                         faceDetectionInterval = null;
                     }
+                    
                     try {
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-                        // استخدم أبعاد العرض الفعلية للفيديو على الشاشة
-                        const displayWidth = video.clientWidth;
-                        const displayHeight = video.clientHeight;
+                        
+                        // تحسين حساب الأبعاد للتوافق مع iPhone
+                        const videoRect = video.getBoundingClientRect();
+                        const displayWidth = videoRect.width;
+                        const displayHeight = videoRect.height;
+                        
+                        // تعيين أبعاد الـ canvas لتطابق الفيديو تماماً
                         overlayCanvas.width = displayWidth;
                         overlayCanvas.height = displayHeight;
+                        
+                        // تحسين موضع الـ canvas ليكون فوق الفيديو تماماً
                         overlayCanvas.style.position = 'absolute';
-                        overlayCanvas.style.left = video.offsetLeft + 'px';
-                        overlayCanvas.style.top = video.offsetTop + 'px';
-                        overlayCanvas.style.width = video.style.width;
-                        overlayCanvas.style.height = video.style.height;
+                        overlayCanvas.style.left = videoRect.left + 'px';
+                        overlayCanvas.style.top = videoRect.top + 'px';
+                        overlayCanvas.style.width = displayWidth + 'px';
+                        overlayCanvas.style.height = displayHeight + 'px';
+                        overlayCanvas.style.pointerEvents = 'none';
+                        
+                        // تحسين إضافي لـ iPhone - استخدام موضع نسبي
+                        const containerRect = modal.getBoundingClientRect();
+                        const relativeLeft = videoRect.left - containerRect.left;
+                        const relativeTop = videoRect.top - containerRect.top;
+                        
+                        // إذا كان الجهاز iPhone، استخدم الموضع النسبي
+                        const isIPhone = /iPhone|iPad|iPod/.test(navigator.userAgent);
+                        if (isIPhone) {
+                            overlayCanvas.style.left = relativeLeft + 'px';
+                            overlayCanvas.style.top = relativeTop + 'px';
+                            console.log('Using relative positioning for iPhone');
+                        }
+                        
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
-                        console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
+                        
+                        console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                        console.log(`Display dimensions: ${displayWidth}x${displayHeight}`);
+                        console.log(`Canvas dimensions: ${overlayCanvas.width}x${overlayCanvas.height}`);
+                        
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
                                 try {
@@ -380,6 +417,11 @@
                                 }
                             }
                         }, 1000);
+                        
+                        // إضافة تأخير قصير ثم إعادة حساب الموضع لضمان التطابق على iPhone
+                        setTimeout(() => {
+                            updateCanvasPosition();
+                        }, 500);
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
                         alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
@@ -487,6 +529,52 @@
             // أعد فتح الكاميرا بنفس منطق openCamera
             openCamera(studentId, studentName);
         }
+        
+        // دالة إعادة حساب موضع الإطار عند تغيير حجم النافذة
+        function updateCanvasPosition() {
+            const video = document.getElementById('camera-preview');
+            const overlayCanvas = document.getElementById('overlay');
+            const modal = document.getElementById('camera-modal');
+            
+            if (video && overlayCanvas && video.videoWidth && video.videoHeight) {
+                const videoRect = video.getBoundingClientRect();
+                const displayWidth = videoRect.width;
+                const displayHeight = videoRect.height;
+                
+                overlayCanvas.width = displayWidth;
+                overlayCanvas.height = displayHeight;
+                
+                // تحسين إضافي لـ iPhone - استخدام موضع نسبي
+                const isIPhone = /iPhone|iPad|iPod/.test(navigator.userAgent);
+                if (isIPhone && modal) {
+                    const containerRect = modal.getBoundingClientRect();
+                    const relativeLeft = videoRect.left - containerRect.left;
+                    const relativeTop = videoRect.top - containerRect.top;
+                    overlayCanvas.style.left = relativeLeft + 'px';
+                    overlayCanvas.style.top = relativeTop + 'px';
+                } else {
+                    overlayCanvas.style.left = videoRect.left + 'px';
+                    overlayCanvas.style.top = videoRect.top + 'px';
+                }
+                
+                overlayCanvas.style.width = displayWidth + 'px';
+                overlayCanvas.style.height = displayHeight + 'px';
+                
+                console.log('Canvas position updated:', {
+                    left: overlayCanvas.style.left,
+                    top: overlayCanvas.style.top,
+                    width: displayWidth,
+                    height: displayHeight,
+                    isIPhone: isIPhone
+                });
+            }
+        }
+        
+        // إضافة مستمع لتغيير حجم النافذة
+        window.addEventListener('resize', updateCanvasPosition);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateCanvasPosition, 100);
+        });
     </script>
     <!-- إضافة مكتبة jszip لتحميل الصور كملف مضغوط -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
