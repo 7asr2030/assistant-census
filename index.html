@@ -240,7 +240,7 @@
             <div class="student-name" id="current-student-name"></div>
             <video id="camera-preview" autoplay playsinline></video>
             <!-- إضافة canvas لرسم الإطار الأخضر -->
-            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
+            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10; background: transparent;"></canvas>
             <div class="camera-controls">
                 <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
                 <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
@@ -397,18 +397,36 @@
                                 try {
                                     // استخدام خيارات محسنة لكشف الوجه كاملاً
                                     const options = new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: 320,
-                                        scoreThreshold: 0.3
+                                        inputSize: 416,
+                                        scoreThreshold: 0.2
                                     });
                                     const detections = await faceapi.detectAllFaces(video, options);
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                                     const context = overlayCanvas.getContext('2d');
                                     context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                                     
-                                    // استخدام الطريقة الافتراضية لرسم الإطار
-                                    faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+                                    // رسم الإطار حول الوجه كاملاً
+                                    resizedDetections.forEach(detection => {
+                                        const { box } = detection;
+                                        
+                                        // توسيع الإطار ليشمل الوجه كاملاً
+                                        const expandedBox = {
+                                            x: Math.max(0, box.x - box.width * 0.1),
+                                            y: Math.max(0, box.y - box.height * 0.2),
+                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.2),
+                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.4)
+                                        };
+                                        
+                                        context.strokeStyle = '#00ff00';
+                                        context.lineWidth = 4;
+                                        context.strokeRect(expandedBox.x, expandedBox.y, expandedBox.width, expandedBox.height);
+                                        
+                                        // إضافة نص "وجه" فوق الإطار
+                                        context.fillStyle = '#00ff00';
+                                        context.font = 'bold 16px Arial';
+                                        context.fillText('وجه', expandedBox.x, expandedBox.y - 10);
+                                    });
                                     
-                                    // إذا لم تظهر الإطارات، استخدم الرسم المخصص
                                     if (resizedDetections.length > 0) {
                                         console.log('Faces detected:', resizedDetections.length);
                                     }
@@ -416,7 +434,7 @@
                                     console.error('Error during face detection:', detectionError);
                                 }
                             }
-                        }, 1000);
+                        }, 500);
                         
                         // إضافة تأخير قصير لضمان تحميل الأبعاد بشكل صحيح
                         setTimeout(() => {
