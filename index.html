@@ -341,19 +341,38 @@
             const overlayCanvas = document.getElementById('overlay');
             const modal = document.getElementById('camera-modal');
 
+            // إغلاق أي stream سابق
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+
             try {
-                // تبسيط الوصول للكاميرا
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: currentFacingMode
-                        }
-                    });
-                } catch (facingModeError) {
-                    console.log('Facing mode failed, trying any available camera');
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: true
-                    });
+                // محاولة الوصول للكاميرا مع خيارات متعددة
+                let cameraOptions = [
+                    { video: { facingMode: currentFacingMode } },
+                    { video: { facingMode: 'user' } },
+                    { video: { facingMode: 'environment' } },
+                    { video: true }
+                ];
+
+                let cameraError = null;
+                
+                for (let option of cameraOptions) {
+                    try {
+                        console.log('Trying camera option:', option);
+                        stream = await navigator.mediaDevices.getUserMedia(option);
+                        console.log('Camera access successful with option:', option);
+                        break;
+                    } catch (error) {
+                        console.log('Camera option failed:', option, error.name);
+                        cameraError = error;
+                        continue;
+                    }
+                }
+
+                if (!stream) {
+                    throw cameraError || new Error('لا يمكن الوصول إلى أي كاميرا');
                 }
                 
                 video.srcObject = stream;
@@ -362,27 +381,40 @@
                 video.dataset.studentId = studentId;
 
                 video.onplay = async () => {
-                    // انتظر حتى تتوفر أبعاد الفيديو الحقيقية
-                    await new Promise(resolve => {
-                        if (video.videoWidth && video.videoHeight) return resolve();
-                        video.onloadeddata = resolve;
-                    });
-                    
-                    // تأكد من أن الفيديو يعمل بشكل صحيح
-                    if (!video.videoWidth || !video.videoHeight) {
-                        console.error('Video dimensions not available');
-                        alert('فشل في تحميل الفيديو. يرجى المحاولة مرة أخرى.');
-                        closeCamera();
-                        return;
-                    }
-                    
-                    // أوقف أي interval سابق قبل إنشاء جديد
-                    if (faceDetectionInterval) {
-                        clearInterval(faceDetectionInterval);
-                        faceDetectionInterval = null;
-                    }
-                    
                     try {
+                        // انتظر حتى تتوفر أبعاد الفيديو الحقيقية
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                reject(new Error('انتهت مهلة انتظار تحميل الفيديو'));
+                            }, 10000); // 10 ثواني مهلة
+
+                            if (video.videoWidth && video.videoHeight) {
+                                clearTimeout(timeout);
+                                resolve();
+                            } else {
+                                video.onloadeddata = () => {
+                                    clearTimeout(timeout);
+                                    resolve();
+                                };
+                            }
+                        });
+                        
+                        // تأكد من أن الفيديو يعمل بشكل صحيح
+                        if (!video.videoWidth || !video.videoHeight) {
+                            throw new Error('فشل في تحميل الفيديو');
+                        }
+                        
+                        // أوقف أي interval سابق قبل إنشاء جديد
+                        if (faceDetectionInterval) {
+                            clearInterval(faceDetectionInterval);
+                            faceDetectionInterval = null;
+                        }
+                        
+                        // تحميل نماذج face-api.js
+                        if (typeof faceapi === 'undefined') {
+                            throw new Error('مكتبة التعرف على الوجه غير متوفرة');
+                        }
+
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
                         
@@ -461,17 +493,31 @@
                             updateCanvasPosition();
                         }, 200);
                         
-                    } catch (modelError) {
-                        console.error('Error loading face-api.js models or starting detection:', modelError);
-                        alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
+                    } catch (videoError) {
+                        console.error('Error in video setup:', videoError);
+                        alert('حدث خطأ أثناء إعداد الفيديو: ' + videoError.message);
                         closeCamera();
                     }
                 };
 
             } catch (error) {
                 console.error('Error accessing camera:', error);
-                alert('حدث خطأ في الوصول إلى الكاميرا: ' + error.name + ' - ' + error.message);
-                closeCamera(); // Use closeCamera to ensure cleanup
+                let errorMessage = 'حدث خطأ في الوصول إلى الكاميرا';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'تم رفض الوصول إلى الكاميرا. يرجى السماح بالوصول إلى الكاميرا في إعدادات المتصفح.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'لم يتم العثور على كاميرا متاحة. يرجى التأكد من وجود كاميرا متصلة.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = 'الكاميرا مشغولة حالياً. يرجى إغلاق التطبيقات الأخرى التي تستخدم الكاميرا.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = 'الكاميرا المطلوبة غير متوفرة. سيتم استخدام كاميرا أخرى.';
+                } else {
+                    errorMessage += ': ' + error.message;
+                }
+                
+                alert(errorMessage);
+                closeCamera();
             }
         }
         
