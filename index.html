@@ -171,8 +171,6 @@
             height: auto;
             border-radius: 8px;
             object-fit: cover;
-            display: block;
-            position: relative;
         }
         
         .camera-controls {
@@ -191,16 +189,6 @@
             padding: 5px 10px;
             border-radius: 5px;
             font-size: 16px;
-            z-index: 20;
-        }
-        
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 10;
-            pointer-events: none;
-            border-radius: 8px;
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
@@ -240,7 +228,7 @@
             <div class="student-name" id="current-student-name"></div>
             <video id="camera-preview" autoplay playsinline></video>
             <!-- إضافة canvas لرسم الإطار الأخضر -->
-            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10; background: transparent;"></canvas>
+            <canvas id="overlay" style="position:absolute; top:0; left:0; z-index:10;"></canvas>
             <div class="camera-controls">
                 <button id="capture-button" onclick="capturePhoto()">التقاط صورة</button>
                 <button class="camera-button switch-camera-button" onclick="switchCamera()">تبديل الكاميرا</button>
@@ -344,10 +332,9 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: currentFacingMode
+                        facingMode: { exact: currentFacingMode }
                     }
                 });
-                
                 video.srcObject = stream;
                 document.getElementById('current-student-name').textContent = studentName;
                 modal.style.display = 'flex';
@@ -359,92 +346,40 @@
                         if (video.videoWidth && video.videoHeight) return resolve();
                         video.onloadeddata = resolve;
                     });
-                    
                     // أوقف أي interval سابق قبل إنشاء جديد
                     if (faceDetectionInterval) {
                         clearInterval(faceDetectionInterval);
                         faceDetectionInterval = null;
                     }
-                    
                     try {
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
-                        
-                        // تبسيط حساب الأبعاد - استخدام أبعاد العرض الفعلية
+                        // استخدم أبعاد العرض الفعلية للفيديو على الشاشة
                         const displayWidth = video.clientWidth;
                         const displayHeight = video.clientHeight;
-                        
-                        // تعيين أبعاد الـ canvas
                         overlayCanvas.width = displayWidth;
                         overlayCanvas.height = displayHeight;
-                        
-                        // تبسيط موضع الـ canvas - استخدام موضع نسبي داخل الحاوية
                         overlayCanvas.style.position = 'absolute';
-                        overlayCanvas.style.left = '0px';
-                        overlayCanvas.style.top = '0px';
-                        overlayCanvas.style.width = '100%';
-                        overlayCanvas.style.height = '100%';
-                        overlayCanvas.style.pointerEvents = 'none';
-                        
+                        overlayCanvas.style.left = video.offsetLeft + 'px';
+                        overlayCanvas.style.top = video.offsetTop + 'px';
+                        overlayCanvas.style.width = video.style.width;
+                        overlayCanvas.style.height = video.style.height;
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
-                        
-                        console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
-                        console.log(`Display dimensions: ${displayWidth}x${displayHeight}`);
-                        console.log(`Canvas dimensions: ${overlayCanvas.width}x${overlayCanvas.height}`);
-                        
+                        console.log(`Canvas dimensions matched to video client size: ${displayWidth}x${displayHeight}. Starting face detection interval.`);
                         faceDetectionInterval = setInterval(async () => {
                             if (typeof faceapi !== 'undefined') {
                                 try {
-                                    // تحسين خيارات كشف الوجه للأجهزة المحمولة
-                                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                                    const options = new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: isMobile ? 320 : 416,
-                                        scoreThreshold: isMobile ? 0.2 : 0.1
-                                    });
-                                    const detections = await faceapi.detectAllFaces(video, options);
+                                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                                     const context = overlayCanvas.getContext('2d');
                                     context.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                                    
-                                    // رسم الإطار حول الوجه مع النسبة المئوية
-                                    resizedDetections.forEach(detection => {
-                                        const { box, score } = detection;
-                                        
-                                        // توسيع بسيط للإطار ليشمل الوجه كاملاً
-                                        const expandedBox = {
-                                            x: Math.max(0, box.x - box.width * 0.02),
-                                            y: Math.max(0, box.y - box.height * 0.05),
-                                            width: Math.min(overlayCanvas.width - box.x, box.width * 1.04),
-                                            height: Math.min(overlayCanvas.height - box.y, box.height * 1.1)
-                                        };
-                                        
-                                        // استخدام الإطار الأصلي بدون توسيع
-                                        context.strokeStyle = '#00ff00';
-                                        context.lineWidth = 3;
-                                        context.strokeRect(expandedBox.x, expandedBox.y, expandedBox.width, expandedBox.height);
-                                        
-                                        // إضافة النسبة المئوية
-                                        const confidence = Math.round(score * 100);
-                                        context.fillStyle = '#00ff00';
-                                        context.font = 'bold 14px Arial';
-                                        context.fillText(`وجه (${confidence}%)`, expandedBox.x, expandedBox.y - 5);
-                                    });
-                                    
-                                    if (resizedDetections.length > 0) {
-                                        console.log('Faces detected:', resizedDetections.length);
-                                    }
+                                    faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
                                 } catch (detectionError) {
                                     console.error('Error during face detection:', detectionError);
                                 }
                             }
-                        }, 500);
-                        
-                        // إضافة تأخير قصير لضمان تحميل الأبعاد بشكل صحيح
-                        setTimeout(() => {
-                            updateCanvasPosition();
-                        }, 200);
-                        
+                        }, 1000);
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
                         alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
@@ -455,7 +390,7 @@
             } catch (error) {
                 console.error('Error accessing camera:', error);
                 alert('حدث خطأ في الوصول إلى الكاميرا: ' + error.name + ' - ' + error.message);
-                closeCamera();
+                closeCamera(); // Use closeCamera to ensure cleanup
             }
         }
         
@@ -552,31 +487,6 @@
             // أعد فتح الكاميرا بنفس منطق openCamera
             openCamera(studentId, studentName);
         }
-        
-        // دالة إعادة حساب موضع الإطار عند تغيير حجم النافذة
-        function updateCanvasPosition() {
-            const video = document.getElementById('camera-preview');
-            const overlayCanvas = document.getElementById('overlay');
-            
-            if (video && overlayCanvas && video.videoWidth && video.videoHeight) {
-                const displayWidth = video.clientWidth;
-                const displayHeight = video.clientHeight;
-                
-                overlayCanvas.width = displayWidth;
-                overlayCanvas.height = displayHeight;
-                
-                console.log('Canvas position updated:', {
-                    width: displayWidth,
-                    height: displayHeight
-                });
-            }
-        }
-        
-        // إضافة مستمع لتغيير حجم النافذة
-        window.addEventListener('resize', updateCanvasPosition);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(updateCanvasPosition, 100);
-        });
     </script>
     <!-- إضافة مكتبة jszip لتحميل الصور كملف مضغوط -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
