@@ -172,6 +172,7 @@
             border-radius: 8px;
             object-fit: cover;
             display: block;
+            position: relative;
         }
         
         .camera-controls {
@@ -199,6 +200,7 @@
             left: 0;
             z-index: 10;
             pointer-events: none;
+            border-radius: 8px;
         }
     </style>
     <!-- إضافة مكتبة face-api.js -->
@@ -367,35 +369,24 @@
                         await faceapi.nets.tinyFaceDetector.loadFromUri('models');
                         console.log('Face-api.js tinyFaceDetector model loaded successfully.');
                         
-                        // تحسين حساب الأبعاد للتوافق مع iPhone
-                        const videoRect = video.getBoundingClientRect();
-                        const displayWidth = videoRect.width;
-                        const displayHeight = videoRect.height;
+                        // تبسيط حساب الأبعاد - استخدام أبعاد العرض الفعلية
+                        const displayWidth = video.clientWidth;
+                        const displayHeight = video.clientHeight;
                         
-                        // تعيين أبعاد الـ canvas لتطابق الفيديو تماماً
+                        // تعيين أبعاد الـ canvas
                         overlayCanvas.width = displayWidth;
                         overlayCanvas.height = displayHeight;
                         
-                        // تحسين موضع الـ canvas ليكون فوق الفيديو تماماً
+                        // تبسيط موضع الـ canvas - استخدام موضع نسبي داخل الحاوية
                         overlayCanvas.style.position = 'absolute';
-                        overlayCanvas.style.left = videoRect.left + 'px';
-                        overlayCanvas.style.top = videoRect.top + 'px';
-                        overlayCanvas.style.width = displayWidth + 'px';
-                        overlayCanvas.style.height = displayHeight + 'px';
+                        overlayCanvas.style.left = '0px';
+                        overlayCanvas.style.top = '0px';
+                        overlayCanvas.style.width = '100%';
+                        overlayCanvas.style.height = '100%';
                         overlayCanvas.style.pointerEvents = 'none';
                         
-                        // تحسين إضافي لـ iPhone - استخدام موضع نسبي
-                        const containerRect = modal.getBoundingClientRect();
-                        const relativeLeft = videoRect.left - containerRect.left;
-                        const relativeTop = videoRect.top - containerRect.top;
-                        
-                        // إذا كان الجهاز iPhone، استخدم الموضع النسبي
-                        const isIPhone = /iPhone|iPad|iPod/.test(navigator.userAgent);
-                        if (isIPhone) {
-                            overlayCanvas.style.left = relativeLeft + 'px';
-                            overlayCanvas.style.top = relativeTop + 'px';
-                            console.log('Using relative positioning for iPhone');
-                        }
+                        // إضافة خلفية شفافة للتصحيح (يمكن إزالتها لاحقاً)
+                        overlayCanvas.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
                         
                         const displaySize = { width: displayWidth, height: displayHeight };
                         faceapi.matchDimensions(overlayCanvas, displaySize);
@@ -418,10 +409,11 @@
                             }
                         }, 1000);
                         
-                        // إضافة تأخير قصير ثم إعادة حساب الموضع لضمان التطابق على iPhone
+                        // إضافة تأخير قصير لضمان تحميل الأبعاد بشكل صحيح
                         setTimeout(() => {
                             updateCanvasPosition();
-                        }, 500);
+                        }, 200);
+                        
                     } catch (modelError) {
                         console.error('Error loading face-api.js models or starting detection:', modelError);
                         alert('حدث خطأ أثناء تحميل نماذج التعرف على الوجه.');
@@ -534,38 +526,17 @@
         function updateCanvasPosition() {
             const video = document.getElementById('camera-preview');
             const overlayCanvas = document.getElementById('overlay');
-            const modal = document.getElementById('camera-modal');
             
             if (video && overlayCanvas && video.videoWidth && video.videoHeight) {
-                const videoRect = video.getBoundingClientRect();
-                const displayWidth = videoRect.width;
-                const displayHeight = videoRect.height;
+                const displayWidth = video.clientWidth;
+                const displayHeight = video.clientHeight;
                 
                 overlayCanvas.width = displayWidth;
                 overlayCanvas.height = displayHeight;
                 
-                // تحسين إضافي لـ iPhone - استخدام موضع نسبي
-                const isIPhone = /iPhone|iPad|iPod/.test(navigator.userAgent);
-                if (isIPhone && modal) {
-                    const containerRect = modal.getBoundingClientRect();
-                    const relativeLeft = videoRect.left - containerRect.left;
-                    const relativeTop = videoRect.top - containerRect.top;
-                    overlayCanvas.style.left = relativeLeft + 'px';
-                    overlayCanvas.style.top = relativeTop + 'px';
-                } else {
-                    overlayCanvas.style.left = videoRect.left + 'px';
-                    overlayCanvas.style.top = videoRect.top + 'px';
-                }
-                
-                overlayCanvas.style.width = displayWidth + 'px';
-                overlayCanvas.style.height = displayHeight + 'px';
-                
                 console.log('Canvas position updated:', {
-                    left: overlayCanvas.style.left,
-                    top: overlayCanvas.style.top,
                     width: displayWidth,
-                    height: displayHeight,
-                    isIPhone: isIPhone
+                    height: displayHeight
                 });
             }
         }
