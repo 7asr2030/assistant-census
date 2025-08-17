@@ -342,11 +342,20 @@
             const modal = document.getElementById('camera-modal');
 
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { exact: currentFacingMode }
-                    }
-                });
+                // تبسيط الوصول للكاميرا
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: currentFacingMode
+                        }
+                    });
+                } catch (facingModeError) {
+                    console.log('Facing mode failed, trying any available camera');
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true
+                    });
+                }
+                
                 video.srcObject = stream;
                 document.getElementById('current-student-name').textContent = studentName;
                 modal.style.display = 'flex';
@@ -358,6 +367,14 @@
                         if (video.videoWidth && video.videoHeight) return resolve();
                         video.onloadeddata = resolve;
                     });
+                    
+                    // تأكد من أن الفيديو يعمل بشكل صحيح
+                    if (!video.videoWidth || !video.videoHeight) {
+                        console.error('Video dimensions not available');
+                        alert('فشل في تحميل الفيديو. يرجى المحاولة مرة أخرى.');
+                        closeCamera();
+                        return;
+                    }
                     
                     // أوقف أي interval سابق قبل إنشاء جديد
                     if (faceDetectionInterval) {
@@ -398,8 +415,8 @@
                                     // تحسين خيارات كشف الوجه للأجهزة المحمولة
                                     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                                     const options = new faceapi.TinyFaceDetectorOptions({
-                                        inputSize: isMobile ? 416 : 512,
-                                        scoreThreshold: isMobile ? 0.4 : 0.3
+                                        inputSize: isMobile ? 320 : 416,
+                                        scoreThreshold: isMobile ? 0.2 : 0.1
                                     });
                                     const detections = await faceapi.detectAllFaces(video, options);
                                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
